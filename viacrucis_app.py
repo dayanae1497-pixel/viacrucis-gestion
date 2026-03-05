@@ -161,18 +161,33 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Gasto guardado con éxito.")
                     st.rerun()
         
-        elif opc == "Abono de Patrocinante":
-            df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
-            with st.form("nuevo_abono"):
-                p_id = st.selectbox("Negocio", options=df_pats['id_patrocinante'], 
-                                    format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
-                abo = st.number_input("Monto Abono ($)", min_value=0.0)
-                if st.form_submit_button("Registrar Abono"):
+       elif opc == "Abono de Patrocinante":
+        df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
+        
+        with st.form("nuevo_abono"):
+            p_id = st.selectbox("Negocio", options=df_pats['id_patrocinante'], 
+                                format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
+            
+            # Nuevo campo de fecha (por defecto hoy)
+            fecha_pago = st.date_input("Fecha del Abono")
+            abo = st.number_input("Monto Abono ($)", min_value=0.0)
+            
+            if st.form_submit_button("Registrar Abono"):
+                try:
                     cur = db.cursor()
-                    cur.execute("INSERT INTO pago_patrocinantes (id_patrocinante, abono) VALUES (%s, %s)", (p_id, abo))
+                    # Agregamos la fecha al INSERT
+                    sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, fecha) VALUES (%s, %s, %s)"
+                    valores = (int(p_id), float(abo), fecha_pago)
+                    
+                    cur.execute(sql, valores)
                     db.commit()
-                    st.success("✅ Abono registrado.")
+                    cur.close()
+                    
+                    st.success(f"✅ Abono de ${abo} registrado para el día {fecha_pago}.")
                     st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al registrar: {e}")
+                    st.info("Revisa en HeidiSQL que la tabla 'pago_patrocinantes' tenga la columna 'fecha'.")
 
         elif opc == "Nuevo Patrocinante":
             with st.form("form_nuevo_patro"):
@@ -218,4 +233,5 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Personaje registrado con éxito.")
 
 db.close()
+
 
