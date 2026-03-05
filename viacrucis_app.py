@@ -104,6 +104,37 @@ with tabs[1]:
     c1.metric("Ingresos", f"{total_in} $")
     c2.metric("Gastos", f"{total_out} $")
     c3.metric("Saldo", f"{total_in - total_out} $")
+    st.divider()
+    
+    # --- TABLA ESTILIZADA DE PAGOS ---
+    try:
+        # Consulta ajustada a tus nombres de columna de HeidiSQL (image_31bac3 y image_215d2c)
+        q_estilo = """
+            SELECT 
+                p.negocio AS Patrocinante,
+                p.`monto a pagar` AS Pactado,
+                IFNULL(SUM(pg.abono), 0) AS Abonado,
+                (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
+            FROM patrocinantes p
+            LEFT JOIN pago_patrocinantes pg ON p.id_patrocinante = pg.id_patrocinante
+            GROUP BY p.id_patrocinante
+        """
+        df_pagos = pd.read_sql(q_estilo, db)
+
+        # La función de los colores (Rojo, Amarillo, Verde)
+        def resaltar_estatus(row):
+            if row['Abonado'] == 0:
+                return ['background-color: #ffcccc'] * len(row) # Rojo: No ha dado nada
+            elif row['Pendiente'] <= 0:
+                return ['background-color: #ccffcc'] * len(row) # Verde: Solventado
+            else:
+                return ['background-color: #ffffcc'] * len(row) # Amarillo: En proceso
+
+        st.subheader("📋 Detalle de Cobranza")
+        st.dataframe(df_pagos.style.apply(resaltar_estatus, axis=1), use_container_width=True)
+
+    except Exception as e:
+        st.error(f"Error visualizando los colores: {e}")
     
     st.divider()
     col_pat, col_gas = st.columns(2)
@@ -121,7 +152,7 @@ with tabs[1]:
     with col_gas:
         st.subheader("Gastos")
         # id_gastos, concepto, monto, fecha del gasto
-        st.dataframe(pd.read_sql("SELECT concepto, monto, `fecha del gasto` FROM gastos", db), hide_index=True)
+        st.dataframe(pd.read_sql("SELECT concepto, monto, `fecha deL gasto` FROM gastos", db), hide_index=True)
 
 # --- PESTAÑA: INVENTARIO ---
 with tabs[2]:
@@ -270,6 +301,7 @@ if st.session_state['usuario_rol'] == 1:
 # --- CIERRE DE SEGURIDAD (Al final de todo el archivo, pegado a la izquierda) ---
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
