@@ -263,8 +263,8 @@ if st.session_state['usuario_rol'] == 1:
                       st.rerun()
           except Exception as e:
               st.error(f"⚠️ Hubo un detalle al cargar participantes: {e}")
+ db.close()
 
-  db.close()
 
 
 
