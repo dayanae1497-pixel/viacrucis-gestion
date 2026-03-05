@@ -199,22 +199,57 @@ if st.session_state['usuario_rol'] == 1:
                     else:
                         st.error("Mano, ponle el nombre al negocio por lo menos.")
 
-        elif opc == "Nuevo Participante":
-            with st.form("form_nuevo_participante"):
+        # --- SECCIÓN DE REGISTROS ---
+    elif opc == "Nuevo Participante":
+        df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
+        df_par = pd.read_sql("SELECT id_parroquia, nombre_parroquia FROM parroquias", db)
+        df_rol = pd.read_sql("SELECT id_rol, nombre_rol FROM roles", db)
+
+        with st.form("form_participante"):
+            col1, col2 = st.columns(2)
+            with col1:
                 nom = st.text_input("Nombre")
                 ape = st.text_input("Apellido")
                 eda = st.number_input("Edad", min_value=0)
-                telf_p = st.text_input("Teléfono")
-                df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
+            with col2:
+                telf = st.text_input("Teléfono")
+                par_id = st.selectbox("Parroquia", options=df_par['id_parroquia'], 
+                                     format_func=lambda x: df_par[df_par['id_parroquia']==x]['nombre_parroquia'].iloc[0])
                 com_id = st.selectbox("Comisión", options=df_com['id_comsion'], 
-                                    format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
-                if st.form_submit_button("Registrar Participante"):
+                                     format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
+            
+            rol_id = st.selectbox("Rol/Personaje", options=df_rol['id_rol'], 
+                                 format_func=lambda x: df_rol[df_rol['id_rol']==x]['nombre_rol'].iloc[0])
+
+            if st.form_submit_button("✅ Registrar en Base de Datos"):
+                try:
                     cur = db.cursor()
-                    # Se asigna por defecto id_parroquia=1 e id_rol=1 (actor/participante base)
-                    cur.execute("INSERT INTO participantes (Nombre, Apellido, Edad, teléfono, id_comision, id_parroquia, id_rol) VALUES (%s, %s, %s, %s, %s, 1, 1)", 
-                                (nom, ape, eda, telf_p, com_id))
+                    sql = """INSERT INTO participantes (Nombre, Apellido, Edad, teléfono, id_comision, id_parroquia, id_rol) 
+                             VALUES (%s, %s, %s, %s, %s, %s, %s)"""
+                    cur.execute(sql, (nom, ape, eda, telf, com_id, par_id, rol_id))
                     db.commit()
-                    st.success("✅ Participante agregado.")
+                    cur.close()
+                    st.success(f"¡{nom} registrado con éxito!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+    elif opc == "Nuevo Patrocinante":
+        with st.form("form_patro"):
+            negocio = st.text_input("Nombre del Negocio/Patrocinante")
+            contacto = st.text_input("Persona de Contacto")
+            telf_patro = st.text_input("Teléfono")
+            
+            if st.form_submit_button("🚀 Guardar Patrocinante"):
+                try:
+                    cur = db.cursor()
+                    cur.execute("INSERT INTO patrocinantes (negocio, contacto, telefono) VALUES (%s, %s, %s)", 
+                                (negocio, contacto, telf_patro))
+                    db.commit()
+                    cur.close()
+                    st.success("Patrocinante guardado.")
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
         elif opc == "Nuevo Personaje":
             with st.form("form_nuevo_personaje"):
@@ -227,6 +262,7 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Personaje registrado con éxito.")
 
 db.close()
+
 
 
 
