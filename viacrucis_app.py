@@ -235,17 +235,37 @@ if st.session_state['usuario_rol'] == 1:
                     except Exception as e:
                         st.error(f"❌ Error en base de datos: {e}")
 
-        elif opc == "Nuevo Personaje":
-            with st.form("form_nuevo_personaje"):
-                nom_per = st.text_input("Nombre del Personaje")
-                des_per = st.text_area("Descripción")
-                if st.form_submit_button("Registrar Personaje"):
+        elif opc == "Asignar Personaje":
+        try:
+            # Traemos los participantes que aún no tienen personaje (o todos para editar)
+            df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
+            # Creamos una columna combinada para el buscador
+            df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
+
+            st.subheader("Asignar Papel del Elenco")
+            
+            with st.form("form_personaje"):
+                # Seleccionamos al actor/participante
+                p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
+                                   format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
+                
+                # Escribimos el personaje (Descripción en tu tabla)
+                nombre_papel = st.text_input("Nombre del Personaje (Ej: Barrabás, Ángel)")
+
+                if st.form_submit_button("Asignar Personaje"):
                     cur = db.cursor()
-                    cur.execute("INSERT INTO personajes (nombre_personaje, descripcion) VALUES (%s, %s)", (nom_per, des_per))
+                    # SQL basado en tu estructura de image_223b63.png
+                    sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
+                    cur.execute(sql, (nombre_papel, int(p_id)))
                     db.commit()
-                    st.success("✅ Personaje registrado con éxito.")
+                    cur.close()
+                    st.success(f"✅ ¡Papel de '{nombre_papel}' asignado correctamente!")
+                    st.rerun()
+        except Exception as e:
+            st.error(f"⚠️ Hubo un detalle al cargar participantes: {e}")
 
 db.close()
+
 
 
 
