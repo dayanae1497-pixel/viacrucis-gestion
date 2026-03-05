@@ -124,11 +124,11 @@ with tabs[1]:
         # La función de los colores (Rojo, Amarillo, Verde)
         def resaltar_estatus(row):
             if row['Abonado'] == 0:
-                return ['background-color: #ffcccc'] * len(row) # Rojo: No ha dado nada
+                return ['background-color: #ffcccc; color: black'] * len(row) # Rojo: No ha dado nada
             elif row['Pendiente'] <= 0:
-                return ['background-color: #ccffcc'] * len(row) # Verde: Solventado
+                return ['background-color: #ccffcc; color: black'] * len(row) # Verde: Solventado
             else:
-                return ['background-color: #ffffcc'] * len(row) # Amarillo: En proceso
+                return ['background-color: #ffffcc; color: black'] * len(row) # Amarillo: En proceso
 
         st.subheader("📋 Detalle de Cobranza")
         st.dataframe(df_pagos.style.apply(resaltar_estatus, axis=1), use_container_width=True)
@@ -301,6 +301,7 @@ if st.session_state['usuario_rol'] == 1:
 # --- CIERRE DE SEGURIDAD (Al final de todo el archivo, pegado a la izquierda) ---
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
