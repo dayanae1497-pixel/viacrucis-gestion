@@ -236,35 +236,36 @@ if st.session_state['usuario_rol'] == 1:
                         st.error(f"❌ Error en base de datos: {e}")
 
         elif opc == "Asignar Personaje":
-        try:
-            # Traemos los participantes que aún no tienen personaje (o todos para editar)
-            df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
-            # Creamos una columna combinada para el buscador
-            df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
+          try:
+              # Traemos los participantes que aún no tienen personaje (o todos para editar)
+              df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
+              # Creamos una columna combinada para el buscador
+              df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
 
-            st.subheader("Asignar Papel del Elenco")
+              st.subheader("Asignar Papel del Elenco")
             
-            with st.form("form_personaje"):
-                # Seleccionamos al actor/participante
-                p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
-                                   format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
+              with st.form("form_personaje"):
+                  # Seleccionamos al actor/participante
+                  p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
+                                     format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
                 
-                # Escribimos el personaje (Descripción en tu tabla)
-                nombre_papel = st.text_input("Nombre del Personaje (Ej: Barrabás, Ángel)")
+                  # Escribimos el personaje (Descripción en tu tabla)
+                  nombre_papel = st.text_input("Nombre del Personaje (Ej: Barrabás, Ángel)")
 
-                if st.form_submit_button("Asignar Personaje"):
-                    cur = db.cursor()
-                    # SQL basado en tu estructura de image_223b63.png
-                    sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
-                    cur.execute(sql, (nombre_papel, int(p_id)))
-                    db.commit()
-                    cur.close()
-                    st.success(f"✅ ¡Papel de '{nombre_papel}' asignado correctamente!")
-                    st.rerun()
-        except Exception as e:
-            st.error(f"⚠️ Hubo un detalle al cargar participantes: {e}")
+                  if st.form_submit_button("Asignar Personaje"):
+                      cur = db.cursor()
+                      # SQL basado en tu estructura de image_223b63.png
+                      sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
+                      cur.execute(sql, (nombre_papel, int(p_id)))
+                      db.commit()
+                      cur.close()
+                      st.success(f"✅ ¡Papel de '{nombre_papel}' asignado correctamente!")
+                      st.rerun()
+          except Exception as e:
+              st.error(f"⚠️ Hubo un detalle al cargar participantes: {e}")
 
-db.close()
+  db.close()
+
 
 
 
