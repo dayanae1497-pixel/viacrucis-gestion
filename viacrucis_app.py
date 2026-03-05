@@ -215,7 +215,7 @@ if st.session_state['usuario_rol'] == 1:
                 with col2:
                     telf_p = st.text_input("Teléfono")
                     par_id = st.selectbox("Parroquia", options=df_par['id_parroquia'], 
-                                         format_func=lambda x: df_par[df_par['id_parroquia']==x]['`Nombre Parroquia`'].iloc[0])
+                                         format_func=lambda x: df_par[df_par['id_parroquia']==x]['Nombre Parroquia'].iloc[0])
                     com_id = st.selectbox("Comisión", options=df_com['id_comsion'], 
                                          format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
             
@@ -246,6 +246,7 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Personaje registrado con éxito.")
 
 db.close()
+
 
 
 
