@@ -204,7 +204,7 @@ if st.session_state['usuario_rol'] == 1:
         elif opc == "Nuevo Participante":
             df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
             df_par = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
-            df_rol = pd.read_sql("SELECT id_rol, nombre_rol FROM roles", db)
+            df_rol = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
 
             with st.form("form_nuevo_participante"):
                 col1, col2 = st.columns(2)
@@ -215,12 +215,12 @@ if st.session_state['usuario_rol'] == 1:
                 with col2:
                     telf_p = st.text_input("Teléfono")
                     par_id = st.selectbox("Parroquia", options=df_par['id_parroquia'], 
-                                         format_func=lambda x: df_par[df_par['id_parroquia']==x]['nombre_parroquia'].iloc[0])
+                                         format_func=lambda x: df_par[df_par['id_parroquia']==x]['`Nombre Parroquia`'].iloc[0])
                     com_id = st.selectbox("Comisión", options=df_com['id_comsion'], 
                                          format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
             
                 rol_id = st.selectbox("Rol/Personaje", options=df_rol['id_rol'], 
-                                     format_func=lambda x: df_rol[df_rol['id_rol']==x]['nombre_rol'].iloc[0])
+                                     format_func=lambda x: df_rol[df_rol['id_rol']==x]['Descripción'].iloc[0])
 
                 if st.form_submit_button("Registrar Participante"):
                     try:
@@ -246,6 +246,7 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Personaje registrado con éxito.")
 
 db.close()
+
 
 
 
