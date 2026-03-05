@@ -6,8 +6,16 @@ import mysql.connector
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
 def conectar():
+    # Intenta sacar la clave de los Secrets de Streamlit
+    # Si no existe (en local), usa una cadena vacía o tu clave de prueba
+    password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
+    
     return mysql.connector.connect(
-        host="mysql-68077f9-viacrucis2026.d.aivencloud.com", user="avnadmin", password="", port=18358, database="viacrucis_2026"
+        host="mysql-68077f9-viacrucis2026.d.aivencloud.com", 
+        user="avnadmin", 
+        password=password_db, 
+        port=18358, 
+        database="viacrucis_2026"
     )
 
 # --- SISTEMA DE LOGIN ---
@@ -210,3 +218,4 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Personaje registrado con éxito.")
 
 db.close()
+
