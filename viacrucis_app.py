@@ -203,7 +203,7 @@ if st.session_state['usuario_rol'] == 1:
     # --- SECCIÓN: NUEVO PARTICIPANTE ---
         elif opc == "Nuevo Participante":
             df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
-            df_par = pd.read_sql("SELECT id_parroquia, nombre_parroquia FROM parroquias", db)
+            df_par = pd.read_sql("SELECT id_parroquia, nombre_parroquia FROM parroquia", db)
             df_rol = pd.read_sql("SELECT id_rol, nombre_rol FROM roles", db)
 
             with st.form("form_nuevo_participante"):
@@ -246,6 +246,7 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Personaje registrado con éxito.")
 
 db.close()
+
 
 
 
