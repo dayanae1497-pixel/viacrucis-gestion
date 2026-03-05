@@ -66,7 +66,7 @@ with tabs[0]:
     st.header("Lista de Participantes")
     query_p = """
     SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
-            r.Descripción AS Rol, pa.Nombre Parroquia AS Parroquia, 
+            r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
             c.Descripción AS Comisión, p.teléfono AS Teléfono
     FROM participantes p
     JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
@@ -306,6 +306,7 @@ if st.session_state['usuario_rol'] == 1:
 # --- CIERRE DE SEGURIDAD (Al final de todo el archivo, pegado a la izquierda) ---
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
