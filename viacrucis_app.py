@@ -123,15 +123,15 @@ with tabs[1]:
         # 1. Selector de filtro justo arriba de la tabla
         filtro = st.selectbox(
             "🔍 Filtrar por estatus de pago:",
-            ["Todos", "Sin abonos", "Abonos", "Cancelaron"]
+            ["Todos", "Sin abonos", "Abonos", "Cancelado"]
         )
 
         # 2. Lógica del filtro
-        if filtro == "No han dado ni medio (Rojo)":
+        if filtro == "Sin abonos":
             df_pagos = df_pagos[df_pagos['Abonado'] == 0]
-        elif filtro == "Han abonado (Amarillo)":
+        elif filtro == "Abonos":
             df_pagos = df_pagos[(df_pagos['Abonado'] > 0) & (df_pagos['Pendiente'] > 0)]
-        elif filtro == "Ya pagaron (Verde)":
+        elif filtro == "Cancelado":
             df_pagos = df_pagos[df_pagos['Pendiente'] <= 0]
 
         # 3. Función de colores con LETRA NEGRA (color: black)
