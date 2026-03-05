@@ -253,7 +253,7 @@ if st.session_state['usuario_rol'] == 1:
                                        format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
                   
                 # 'Descripción' con D mayúscula según HeidiSQL (image_223b63)
-                    nombre_papel = st.text_input("Nombre del Personaje (Ej: San Juan, Judas)")
+                    nombre_papel = st.text_input("Nombre del Personaje")
 
                     if st.form_submit_button("Guardar Personaje"):
                         cur = db.cursor()
@@ -270,6 +270,7 @@ if st.session_state['usuario_rol'] == 1:
 # --- CIERRE DE SEGURIDAD (Al final de todo el archivo, pegado a la izquierda) ---
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
