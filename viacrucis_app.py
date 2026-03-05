@@ -123,7 +123,7 @@ with tabs[1]:
         # 1. Selector de filtro justo arriba de la tabla
         filtro = st.selectbox(
             "🔍 Filtrar por estatus de pago:",
-            ["Todos", "No han dado ni medio (Rojo)", "Han abonado (Amarillo)", "Ya pagaron (Verde)"]
+            ["Todos", "Sin abonos", "Abonos", "Cancelaron"]
         )
 
         # 2. Lógica del filtro
@@ -306,6 +306,7 @@ if st.session_state['usuario_rol'] == 1:
 # --- CIERRE DE SEGURIDAD (Al final de todo el archivo, pegado a la izquierda) ---
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
