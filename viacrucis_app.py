@@ -176,7 +176,7 @@ if st.session_state['usuario_rol'] == 1:
                 try:
                     cur = db.cursor()
                     # Agregamos la fecha al INSERT
-                    sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, fecha) VALUES (%s, %s, %s)"
+                    sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, "fecha de abono") VALUES (%s, %s, %s)"
                     valores = (int(p_id), float(abo), fecha_pago)
                     
                     cur.execute(sql, valores)
@@ -233,5 +233,6 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Personaje registrado con éxito.")
 
 db.close()
+
 
 
