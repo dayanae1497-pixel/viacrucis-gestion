@@ -236,43 +236,38 @@ if st.session_state['usuario_rol'] == 1:
                         st.error(f"❌ Error en base de datos: {e}")
 
         # --- SECCIÓN: ASIGNAR PERSONAJE ---
-    elif opc == "Asignar Personaje":
-        try:
-            # Traemos participantes (id_participante, Nombre, Apellido según image_31377c)
-            df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
-            df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
+    # --- SECCIÓN: ASIGNAR PERSONAJE ---
+        elif opc == "Asignar Personaje":
+            try:
+                # Traemos los participantes registrados (image_31377c)
+                df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
+                df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
 
-            st.subheader("Asignar Papel del Elenco")
+                st.subheader("Asignar Papel del Elenco")
             
-            with st.form("form_personaje"):
-                p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
-                                   format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
+                with st.form("form_personaje"):
+                    # Selector del participante
+                    p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
+                                       format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
                 
-                # 'Descripción' con D mayúscula según tu HeidiSQL (image_223b63)
-                nombre_papel = st.text_input("Nombre del Personaje (Ej: Barrabás, La Verónica)")
+                # 'Descripción' con D mayúscula según HeidiSQL (image_223b63)
+                    nombre_papel = st.text_input("Nombre del Personaje (Ej: Poncio Pilatos)")
 
-                if st.form_submit_button("Asignar Personaje"):
-                    cur = db.cursor()
-                    sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
-                    cur.execute(sql, (nombre_papel, int(p_id)))
-                    db.commit()
-                    cur.close()
-                    st.success(f"✅ ¡Papel de '{nombre_papel}' asignado con éxito!")
-                    st.rerun()
-        except Exception as e:
-            st.error(f"⚠️ Hubo un detalle: {e}")
+                    if st.form_submit_button("Asignar Personaje"):
+                        cur = db.cursor()
+                    # id_participante debe ser entero para la BD
+                        sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
+                        cur.execute(sql, (nombre_papel, int(p_id)))
+                        db.commit()
+                        cur.close()
+                        st.success(f"✅ ¡{nombre_papel} asignado correctamente!")
+                        st.rerun()
+            except Exception as e:
+                st.error(f"⚠️ Hubo un detalle: {e}")
 
-# --- CIERRE DE CONEXIÓN (Al final de todo el archivo, sin espacios al inicio) ---
+# --- CIERRE DE SEGURIDAD (Al final de todo el archivo, pegado a la izquierda) ---
 if 'db' in locals() and db.is_connected():
     db.close()
-
-
-
-
-
-
-
-
 
 
 
