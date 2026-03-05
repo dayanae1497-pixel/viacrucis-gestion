@@ -146,13 +146,71 @@ with tabs[1]:
                 (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
         FROM patrocinantes p
         LEFT JOIN pago_patrocinantes pg ON p.id_patrocinante = pg.id_patrocinante
-        GROUP BY p.id_patrocinante
+        GROUP BY p.id_patroci# --- PESTAÑA: ECONOMÍA ---
+with tabs[1]:
+    res_in = pd.read_sql("SELECT SUM(abono) as total FROM pago_patrocinantes", db)
+    total_in = res_in['total'].iloc[0] or 0
+    res_out = pd.read_sql("SELECT SUM(monto) as total FROM gastos", db)
+    total_out = res_out['total'].iloc[0] or 0
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Ingresos", f"{total_in} $")
+    c2.metric("Gastos", f"{total_out} $")
+    c3.metric("Saldo", f"{total_in - total_out} $")
+    st.divider()
+    
+    # --- TABLA ESTILIZADA DE PAGOS CON FILTRO ---
+    try:
+        q_estilo = """
+            SELECT 
+                p.negocio AS Patrocinante,
+                p.`monto a pagar` AS Pactado, 
+                IFNULL(SUM(pg.abono), 0) AS Abonado,
+                (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
+            FROM patrocinantes p
+            LEFT JOIN pago_patrocinantes pg ON p.id_patrocinante = pg.id_patrocinante
+            GROUP BY p.id_patrocinante
         """
-        st.dataframe(pd.read_sql(q_pat, db), hide_index=True)
-    with col_gas:
-        st.subheader("Gastos")
-        # id_gastos, concepto, monto, fecha del gasto
-        st.dataframe(pd.read_sql("SELECT concepto, monto, `fecha deL gasto` FROM gastos", db), hide_index=True)
+        df_pagos = pd.read_sql(q_estilo, db)
+
+        # 1. Selector de filtro justo arriba de la tabla
+        filtro = st.selectbox(
+            "🔍 Filtrar por estatus de pago:",
+            ["Todos", "No han dado ni medio (Rojo)", "Han abonado (Amarillo)", "Ya pagaron (Verde)"]
+        )
+
+        # 2. Lógica del filtro
+        if filtro == "No han dado ni medio (Rojo)":
+            df_pagos = df_pagos[df_pagos['Abonado'] == 0]
+        elif filtro == "Han abonado (Amarillo)":
+            df_pagos = df_pagos[(df_pagos['Abonado'] > 0) & (df_pagos['Pendiente'] > 0)]
+        elif filtro == "Ya pagaron (Verde)":
+            df_pagos = df_pagos[df_pagos['Pendiente'] <= 0]
+
+        # 3. Función de colores con LETRA NEGRA (color: black)
+        def resaltar_estatus(row):
+            if row['Abonado'] == 0:
+                return ['background-color: #ff0000; color: black'] * len(row) # Rojo
+            elif row['Pendiente'] <= 0:
+                return ['background-color: #3fd33e; color: black'] * len(row) # Verde
+            else:
+                return ['background-color: #ffce1b; color: black'] * len(row) # Amarillo
+
+        st.subheader(f"📋 Detalle: {filtro}")
+        
+        # Mostramos la tabla filtrada y le quitamos los decimales extra
+        st.dataframe(
+            df_pagos.style.apply(resaltar_estatus, axis=1).format({
+                "Pactado": "{:.2f} $",
+                "Abonado": "{:.2f} $",
+                "Pendiente": "{:.2f} $"
+            }), 
+            use_container_width=True,
+            hide_index=True
+        )
+
+    except Exception as e:
+        st.error(f"Error visualizando los colores: {e}")
 
 # --- PESTAÑA: INVENTARIO ---
 with tabs[2]:
@@ -301,6 +359,7 @@ if st.session_state['usuario_rol'] == 1:
 # --- CIERRE DE SEGURIDAD (Al final de todo el archivo, pegado a la izquierda) ---
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
