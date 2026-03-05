@@ -1,0 +1,212 @@
+import streamlit as st
+import pandas as pd
+import mysql.connector
+
+# --- CONFIGURACIÓN ---
+st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
+
+def conectar():
+    return mysql.connector.connect(
+        host="mysql-68077f9-viacrucis2026.d.aivencloud.com", user="avnadmin", password="", port=18358, database="viacrucis_2026"
+    )
+
+# --- SISTEMA DE LOGIN ---
+if 'autenticado' not in st.session_state:
+    st.session_state['autenticado'] = False
+
+if not st.session_state['autenticado']:
+    st.title("🔐 Acceso Sistema Viacrucis 2026")
+    with st.form("login"):
+        user_input = st.text_input("Usuario")
+        pass_input = st.text_input("Contraseña", type="password")
+        if st.form_submit_button("Ingresar"):
+            db = conectar()
+            cursor = db.cursor()
+            # Traemos el nombre y el id_rol para saber qué permisos tiene
+            query = "SELECT nombre_usuario, id_rol FROM usuarios WHERE nombre_usuario=%s AND clave=%s"
+            cursor.execute(query, (user_input, pass_input))
+            resultado = cursor.fetchone()
+            db.close()
+            
+            if resultado:
+                st.session_state['autenticado'] = True
+                st.session_state['usuario_nom'] = resultado[0]
+                st.session_state['usuario_rol'] = resultado[1] # Guardamos el nivel de permiso
+                st.rerun()
+            else:
+                st.error("❌ Credenciales incorrectas.")
+    st.stop()
+
+# --- INTERFAZ PRINCIPAL ---
+st.sidebar.markdown(f"👤 **Usuario:** {st.session_state['usuario_nom']}")
+if st.sidebar.button("Cerrar Sesión"):
+    st.session_state['autenticado'] = False
+    st.rerun()
+
+# Definimos las pestañas dinámicamente según el rol
+# Si id_rol es 1, mostramos la pestaña de carga. Si no, solo las de consulta.
+nombres_tabs = ["👥 Personal", "💰 Economía", "📦 Inventario"]
+if st.session_state['usuario_rol'] == 1:
+    nombres_tabs.append("✍️ Cargar Data")
+
+tabs = st.tabs(nombres_tabs)
+
+db = conectar()
+
+# --- PESTAÑA: PERSONAL ---
+with tabs[0]:
+    st.header("Lista de Participantes")
+    query_p = """
+    SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
+            r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
+            c.Descripción AS Comisión, p.teléfono AS Teléfono
+    FROM participantes p
+    JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
+    JOIN comisiones c ON p.id_comision = c.id_comsion
+    JOIN roles r ON p.id_rol = r.id_rol
+    LEFT JOIN personajes per ON p.id_participante = per.id_participante
+    """
+    df_p = pd.read_sql(query_p, db)
+
+    # Filtros en el Sidebar
+    st.sidebar.header("🔍 Filtros de Lista")
+    f_parroquia = st.sidebar.multiselect("Filtrar por Parroquia", options=df_p["Parroquia"].unique())
+    f_rol = st.sidebar.multiselect("Filtrar por Rol/Personaje", options=df_p["Rol"].unique())
+    f_comision = st.sidebar.multiselect("Filtrar por Comisión", options=df_p["Comisión"].unique())
+
+    # Aplicar filtros
+    df_f = df_p.copy()
+    if f_parroquia: df_f = df_f[df_f["Parroquia"].isin(f_parroquia)]
+    if f_rol: df_f = df_f[df_f["Rol"].isin(f_rol)]
+    if f_comision: df_f = df_f[df_f["Comisión"].isin(f_comision)]
+
+    # Métrica de cantidad de personas
+    st.metric("Total Personas en esta lista", len(df_f))
+    
+    st.dataframe(df_f, use_container_width=True, hide_index=True)
+
+# --- PESTAÑA: ECONOMÍA ---
+with tabs[1]:
+    res_in = pd.read_sql("SELECT SUM(abono) as total FROM pago_patrocinantes", db)
+    total_in = res_in['total'].iloc[0] or 0
+    res_out = pd.read_sql("SELECT SUM(monto) as total FROM gastos", db)
+    total_out = res_out['total'].iloc[0] or 0
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Ingresos", f"{total_in} $")
+    c2.metric("Gastos", f"{total_out} $")
+    c3.metric("Saldo", f"{total_in - total_out} $")
+    
+    st.divider()
+    col_pat, col_gas = st.columns(2)
+    with col_pat:
+        st.subheader("Patrocinantes")
+        q_pat = """
+        SELECT p.negocio, p.`monto a pagar` AS Pactado, 
+                IFNULL(SUM(pg.abono), 0) AS Abonado,
+                (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
+        FROM patrocinantes p
+        LEFT JOIN pago_patrocinantes pg ON p.id_patrocinante = pg.id_patrocinante
+        GROUP BY p.id_patrocinante
+        """
+        st.dataframe(pd.read_sql(q_pat, db), hide_index=True)
+    with col_gas:
+        st.subheader("Gastos")
+        # id_gastos, concepto, monto, fecha del gasto
+        st.dataframe(pd.read_sql("SELECT concepto, monto, `fecha del gasto` FROM gastos", db), hide_index=True)
+
+# --- PESTAÑA: INVENTARIO ---
+with tabs[2]:
+    cv, cu = st.columns(2)
+    with cv:
+        st.subheader("👕 Vestuario")
+        # piezas, descripcion, Nombre Parroquia
+        query_v = """
+        SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia` 
+        FROM vestuario_final v 
+        JOIN parroquia pa ON v.id_parroquia = pa.id_parroquia
+        """
+        st.dataframe(pd.read_sql(query_v, db), hide_index=True)
+    with cu:
+        st.subheader("🛠️ Utilería")
+        # objeto, cantidad, descripcion
+        st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
+
+# --- PESTAÑA: CARGAR DATA (Solo visible para id_rol == 1) ---
+if st.session_state['usuario_rol'] == 1:
+    with tabs[3]:
+        st.header("📝 Registro de Datos")
+        # Agregamos las opciones solicitadas al radio button
+        opc = st.radio("¿Qué deseas registrar?", 
+                        ["Gasto Nuevo", "Abono de Patrocinante", "Nuevo Patrocinante", "Nuevo Participante", "Nuevo Personaje"], 
+                        horizontal=True)
+        
+        if opc == "Gasto Nuevo":
+            with st.form("nuevo_gasto"):
+                con = st.text_input("Concepto")
+                mon = st.number_input("Monto ($)", min_value=0.0)
+                fec = st.date_input("Fecha")
+                if st.form_submit_button("Guardar Gasto"):
+                    cur = db.cursor()
+                    cur.execute("INSERT INTO gastos (concepto, monto, `fecha del gasto`) VALUES (%s, %s, %s)", (con, mon, fec))
+                    db.commit()
+                    st.success("✅ Gasto guardado con éxito.")
+                    st.rerun()
+        
+        elif opc == "Abono de Patrocinante":
+            df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
+            with st.form("nuevo_abono"):
+                p_id = st.selectbox("Negocio", options=df_pats['id_patrocinante'], 
+                                    format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
+                abo = st.number_input("Monto Abono ($)", min_value=0.0)
+                if st.form_submit_button("Registrar Abono"):
+                    cur = db.cursor()
+                    cur.execute("INSERT INTO pago_patrocinantes (id_patrocinante, abono) VALUES (%s, %s)", (p_id, abo))
+                    db.commit()
+                    st.success("✅ Abono registrado.")
+                    st.rerun()
+
+        elif opc == "Nuevo Patrocinante":
+            with st.form("form_nuevo_patro"):
+                nombre_negocio = st.text_input("Nombre del Negocio o Persona")
+                telf = st.text_input("Teléfono de contacto")
+                monto_pactado = st.number_input("Monto a Pagar (Pacto en $)", min_value=0.0)
+                if st.form_submit_button("Registrar Nuevo Patrocinante"):
+                    if nombre_negocio:
+                        cur = db.cursor()
+                        sql = "INSERT INTO patrocinantes (negocio, teléfono, `monto a pagar`) VALUES (%s, %s, %s)"
+                        cur.execute(sql, (nombre_negocio, telf, monto_pactado))
+                        db.commit()
+                        st.success(f"✅ ¡{nombre_negocio} agregado!")
+                        st.rerun()
+                    else:
+                        st.error("Mano, ponle el nombre al negocio por lo menos.")
+
+        elif opc == "Nuevo Participante":
+            with st.form("form_nuevo_participante"):
+                nom = st.text_input("Nombre")
+                ape = st.text_input("Apellido")
+                eda = st.number_input("Edad", min_value=0)
+                telf_p = st.text_input("Teléfono")
+                df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
+                com_id = st.selectbox("Comisión", options=df_com['id_comsion'], 
+                                    format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
+                if st.form_submit_button("Registrar Participante"):
+                    cur = db.cursor()
+                    # Se asigna por defecto id_parroquia=1 e id_rol=1 (actor/participante base)
+                    cur.execute("INSERT INTO participantes (Nombre, Apellido, Edad, teléfono, id_comision, id_parroquia, id_rol) VALUES (%s, %s, %s, %s, %s, 1, 1)", 
+                                (nom, ape, eda, telf_p, com_id))
+                    db.commit()
+                    st.success("✅ Participante agregado.")
+
+        elif opc == "Nuevo Personaje":
+            with st.form("form_nuevo_personaje"):
+                nom_per = st.text_input("Nombre del Personaje")
+                des_per = st.text_area("Descripción")
+                if st.form_submit_button("Registrar Personaje"):
+                    cur = db.cursor()
+                    cur.execute("INSERT INTO personajes (nombre_personaje, descripcion) VALUES (%s, %s)", (nom_per, des_per))
+                    db.commit()
+                    st.success("✅ Personaje registrado con éxito.")
+
+db.close()
