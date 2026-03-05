@@ -161,16 +161,16 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Gasto guardado con éxito.")
                     st.rerun()
         
-       elif opc == "Abono de Patrocinante":
-        df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
+        elif opc == "Abono de Patrocinante":
+         df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
         
-        with st.form("nuevo_abono"):
-            p_id = st.selectbox("Negocio", options=df_pats['id_patrocinante'], 
-                                format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
+            with st.form("nuevo_abono"):
+                p_id = st.selectbox("Negocio", options=df_pats['id_patrocinante'], 
+                                 format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
             
             # Nuevo campo de fecha (por defecto hoy)
-            fecha_pago = st.date_input("Fecha del Abono")
-            abo = st.number_input("Monto Abono ($)", min_value=0.0)
+             fecha_pago = st.date_input("Fecha del Abono")
+             abo = st.number_input("Monto Abono ($)", min_value=0.0)
             
             if st.form_submit_button("Registrar Abono"):
                 try:
@@ -233,6 +233,7 @@ if st.session_state['usuario_rol'] == 1:
                     st.success("✅ Personaje registrado con éxito.")
 
 db.close()
+
 
 
 
