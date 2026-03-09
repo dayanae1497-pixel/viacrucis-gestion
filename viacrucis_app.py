@@ -2,12 +2,9 @@ import streamlit as st
 import pandas as pd
 import mysql.connector
 
-# --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
 def conectar():
-    # Intenta sacar la clave de los Secrets de Streamlit
-    # Si no existe (en local), usa una cadena vacía o tu clave de prueba
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
     
     return mysql.connector.connect(
@@ -18,7 +15,6 @@ def conectar():
         database="viacrucis_2026"
     )
 
-# --- SISTEMA DE LOGIN ---
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
@@ -30,7 +26,6 @@ if not st.session_state['autenticado']:
         if st.form_submit_button("Ingresar"):
             db = conectar()
             cursor = db.cursor()
-            # Traemos el nombre y el id_rol para saber qué permisos tiene
             query = "SELECT nombre_usuario, id_rol FROM usuarios WHERE nombre_usuario=%s AND clave=%s"
             cursor.execute(query, (user_input, pass_input))
             resultado = cursor.fetchone()
@@ -39,20 +34,17 @@ if not st.session_state['autenticado']:
             if resultado:
                 st.session_state['autenticado'] = True
                 st.session_state['usuario_nom'] = resultado[0]
-                st.session_state['usuario_rol'] = resultado[1] # Guardamos el nivel de permiso
+                st.session_state['usuario_rol'] = resultado[1] 
                 st.rerun()
             else:
                 st.error("❌ Credenciales incorrectas.")
     st.stop()
 
-# --- INTERFAZ PRINCIPAL ---
 st.sidebar.markdown(f"👤 **Usuario:** {st.session_state['usuario_nom']}")
 if st.sidebar.button("Cerrar Sesión"):
     st.session_state['autenticado'] = False
     st.rerun()
 
-# Definimos las pestañas dinámicamente según el rol
-# Si id_rol es 1, mostramos la pestaña de carga. Si no, solo las de consulta.
 nombres_tabs = ["👥 Personal", "💰 Economía", "📦 Inventario"]
 if st.session_state['usuario_rol'] == 1:
     nombres_tabs.append("✍️ Cargar Data")
@@ -61,7 +53,6 @@ tabs = st.tabs(nombres_tabs)
 
 db = conectar()
 
-# --- PESTAÑA: PERSONAL ---
 with tabs[0]:
     st.header("Lista de Participantes")
     query_p = """
@@ -76,24 +67,20 @@ with tabs[0]:
     """
     df_p = pd.read_sql(query_p, db)
 
-    # Filtros en el Sidebar
     st.sidebar.header("🔍 Filtros de Lista")
     f_parroquia = st.sidebar.multiselect("Filtrar por Parroquia", options=df_p["Parroquia"].unique())
     f_rol = st.sidebar.multiselect("Filtrar por Rol/Personaje", options=df_p["Rol"].unique())
     f_comision = st.sidebar.multiselect("Filtrar por Comisión", options=df_p["Comisión"].unique())
 
-    # Aplicar filtros
     df_f = df_p.copy()
     if f_parroquia: df_f = df_f[df_f["Parroquia"].isin(f_parroquia)]
     if f_rol: df_f = df_f[df_f["Rol"].isin(f_rol)]
     if f_comision: df_f = df_f[df_f["Comisión"].isin(f_comision)]
 
-    # Métrica de cantidad de personas
     st.metric("Total Personas en esta lista", len(df_f))
     
     st.dataframe(df_f, use_container_width=True, hide_index=True)
 
-# --- PESTAÑA: ECONOMÍA ---
 with tabs[1]:
     res_in = pd.read_sql("SELECT SUM(abono) as total FROM pago_patrocinantes", db)
     total_in = res_in['total'].iloc[0] or 0
@@ -106,7 +93,7 @@ with tabs[1]:
     c3.metric("Saldo", f"{total_in - total_out} $")
     st.divider()
     
-    # --- TABLA ESTILIZADA DE PAGOS CON FILTRO ---
+
     try:
         q_estilo = """
             SELECT 
@@ -120,13 +107,13 @@ with tabs[1]:
         """
         df_pagos = pd.read_sql(q_estilo, db)
 
-        # 1. Selector de filtro justo arriba de la tabla
+    
         filtro = st.selectbox(
             "🔍 Filtrar por estatus de pago:",
             ["Todos", "Sin abonos", "Abonos", "Cancelado"]
         )
 
-        # 2. Lógica del filtro
+      
         if filtro == "Sin abonos":
             df_pagos = df_pagos[df_pagos['Abonado'] == 0]
         elif filtro == "Abonos":
@@ -134,18 +121,18 @@ with tabs[1]:
         elif filtro == "Cancelado":
             df_pagos = df_pagos[df_pagos['Pendiente'] <= 0]
 
-        # 3. Función de colores con LETRA NEGRA (color: black)
+        
         def resaltar_estatus(row):
             if row['Abonado'] == 0:
-                return ['background-color: #ff0000; color: black'] * len(row) # Rojo
+                return ['background-color: #ff0000; color: black'] * len(row)
             elif row['Pendiente'] <= 0:
-                return ['background-color: #3fd33e; color: black'] * len(row) # Verde
+                return ['background-color: #3fd33e; color: black'] * len(row) 
             else:
-                return ['background-color: #ffce1b; color: black'] * len(row) # Amarillo
+                return ['background-color: #ffce1b; color: black'] * len(row) 
 
         st.subheader(f"📋 Detalle: {filtro}")
         
-        # Mostramos la tabla filtrada y le quitamos los decimales extra
+ 
         st.dataframe(
             df_pagos.style.apply(resaltar_estatus, axis=1).format({
                 "Pactado": "{:.2f} $",
@@ -159,12 +146,12 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error visualizando los colores: {e}")
 
-# --- PESTAÑA: INVENTARIO ---
+
 with tabs[2]:
     cv, cu = st.columns(2)
     with cv:
         st.subheader("👕 Vestuario")
-        # piezas, descripcion, Nombre Parroquia
+       
         query_v = """
         SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia` 
         FROM vestuario_final v 
@@ -173,14 +160,14 @@ with tabs[2]:
         st.dataframe(pd.read_sql(query_v, db), hide_index=True)
     with cu:
         st.subheader("🛠️ Utilería")
-        # objeto, cantidad, descripcion
+ 
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
-# --- PESTAÑA: CARGAR DATA (Solo visible para id_rol == 1) ---
+
 if st.session_state['usuario_rol'] == 1:
     with tabs[3]:
         st.header("📝 Registro de Datos")
-        # Agregamos las opciones solicitadas al radio button
+   
         opc = st.radio("¿Qué deseas registrar?", 
                         ["Gasto Nuevo", "Abono de Patrocinante", "Nuevo Patrocinante", "Nuevo Participante", "Nuevo Personaje"], 
                         horizontal=True)
@@ -208,7 +195,7 @@ if st.session_state['usuario_rol'] == 1:
               if st.form_submit_button("Registrar Abono"):
                   try:
                       cur = db.cursor()
-                      # Usamos comillas invertidas `` porque tu columna tiene espacios
+                     
                       sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, `fecha de abono`) VALUES (%s, %s, %s)"
                       valores = (int(p_id), float(abo), fecha_pago)
                       cur.execute(sql, valores)
@@ -235,8 +222,7 @@ if st.session_state['usuario_rol'] == 1:
                     else:
                         st.error("Mano, ponle el nombre al negocio por lo menos.")
 
-        # --- SECCIÓN DE REGISTROS ---
-    # --- SECCIÓN: NUEVO PARTICIPANTE ---
+    
         elif opc == "Nuevo Participante":
             df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
             df_par = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
@@ -271,29 +257,26 @@ if st.session_state['usuario_rol'] == 1:
                     except Exception as e:
                         st.error(f"❌ Error en base de datos: {e}")
 
-        # --- SECCIÓN: ASIGNAR PERSONAJE ---
-    # --- SECCIÓN: ASIGNAR PERSONAJE ---
-        # --- SECCIÓN: NUEVO PERSONAJE ---
-    # Cambiamos el nombre para que coincida EXACTAMENTE con tu botón de la imagen 21c688.png
+    
         elif opc == "Nuevo Personaje":
             try:
-            # Traemos los participantes registrados (image_31377c)
+            
                 df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
                 df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
 
                 st.subheader("🎭 Asignar Papel del Elenco")
             
                 with st.form("form_personaje"):
-                # Selector del participante
+               
                     p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
                                        format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
                   
-                # 'Descripción' con D mayúscula según HeidiSQL (image_223b63)
+              
                     nombre_papel = st.text_input("Nombre del Personaje")
 
                     if st.form_submit_button("Guardar Personaje"):
                         cur = db.cursor()
-                    # Aseguramos que el ID sea un número entero
+                    
                         sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
                         cur.execute(sql, (nombre_papel, int(p_id)))
                         db.commit()
@@ -303,9 +286,10 @@ if st.session_state['usuario_rol'] == 1:
             except Exception as e:
                 st.error(f"⚠️ Hubo un detalle: {e}")
 
-# --- CIERRE DE SEGURIDAD (Al final de todo el archivo, pegado a la izquierda) ---
+
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
