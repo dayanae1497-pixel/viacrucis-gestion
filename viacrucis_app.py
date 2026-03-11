@@ -135,9 +135,9 @@ with tabs[1]:
  
         st.dataframe(
             df_pagos.style.apply(resaltar_estatus, axis=1).format({
-                "Pactado": "{:,.Of} COP",
-                "Abonado": "{:,.Of} COP",
-                "Pendiente": "{:,.Of} COP"
+                "Pactado": "{:.2f} COP",
+                "Abonado": "{:.2f} COP",
+                "Pendiente": "{:.2f} COP"
             }), 
             use_container_width=True,
             hide_index=True
@@ -289,6 +289,7 @@ if st.session_state['usuario_rol'] == 1:
 
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
