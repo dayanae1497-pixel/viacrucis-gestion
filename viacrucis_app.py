@@ -88,9 +88,9 @@ with tabs[1]:
     total_out = res_out['total'].iloc[0] or 0
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("Ingresos", f"{total_in} $")
-    c2.metric("Gastos", f"{total_out} $")
-    c3.metric("Saldo", f"{total_in - total_out} $")
+    c1.metric("Ingresos", f"{total_in} COP")
+    c2.metric("Gastos", f"{total_out} COP")
+    c3.metric("Saldo", f"{total_in - total_out} COP$")
     st.divider()
     
 
@@ -135,9 +135,9 @@ with tabs[1]:
  
         st.dataframe(
             df_pagos.style.apply(resaltar_estatus, axis=1).format({
-                "Pactado": "{:.2f} $",
-                "Abonado": "{:.2f} $",
-                "Pendiente": "{:.2f} $"
+                "Pactado": "{:,.Of} COP",
+                "Abonado": "{:,.Of} COP",
+                "Pendiente": "{:,.Of} COP"
             }), 
             use_container_width=True,
             hide_index=True
@@ -289,6 +289,7 @@ if st.session_state['usuario_rol'] == 1:
 
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
