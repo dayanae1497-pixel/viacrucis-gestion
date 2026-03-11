@@ -90,7 +90,7 @@ with tabs[1]:
     c1, c2, c3 = st.columns(3)
     c1.metric("Ingresos", f"{total_in} COP")
     c2.metric("Gastos", f"{total_out} COP")
-    c3.metric("Saldo", f"{total_in - total_out} COP$")
+    c3.metric("Saldo", f"{total_in - total_out} COP")
     st.divider()
     
 
@@ -289,6 +289,7 @@ if st.session_state['usuario_rol'] == 1:
 
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
