@@ -126,9 +126,9 @@ with tabs[1]:
             if row['Abonado'] == 0:
                 return ['background-color: #ff0000; color: black'] * len(row)
             elif row['Pendiente'] <= 0:
-                return ['background-color: #3fd33e; color: black'] * len(row) 
+                return ['background-color: #ffff99; color: black'] * len(row) 
             else:
-                return ['background-color: #ffce1b; color: black'] * len(row) 
+                return ['background-color: #ff7c70; color: black'] * len(row) 
 
         st.subheader(f"📋 Detalle: {filtro}")
         
@@ -289,6 +289,7 @@ if st.session_state['usuario_rol'] == 1:
 
 if 'db' in locals() and db.is_connected():
     db.close()
+
 
 
 
