@@ -4,7 +4,6 @@ import mysql.connector
 
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
-
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
     
@@ -290,5 +289,3 @@ if st.session_state['usuario_rol'] == 1:
 
 if 'db' in locals() and db.is_connected():
     db.close()
-
-
