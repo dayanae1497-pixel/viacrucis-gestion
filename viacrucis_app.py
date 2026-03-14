@@ -3,7 +3,7 @@ import pandas as pd
 import mysql.connector
 
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
-
+# --- BANNER FIJO ---
 st.markdown("""
     <div style="background-color:#461212;padding:15px;border-radius:10px;text-align:center;">
         <h1 style="color:white;margin:0;">⛪ Viacrucis en Vivo 2026</h1>
@@ -297,6 +297,5 @@ if st.session_state['usuario_rol'] == 1:
 
 if 'db' in locals() and db.is_connected():
     db.close()
-
 
 
