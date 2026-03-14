@@ -3,14 +3,7 @@ import pandas as pd
 import mysql.connector
 
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
-# --- BANNER FIJO ---
-st.markdown("""
-    <div style="background-color:#461212;padding:15px;border-radius:10px;text-align:center;">
-        <h1 style="color:white;margin:0;">⛪ Viacrucis en Vivo 2026</h1>
-        <p style="color:white;opacity:0.8;">Sistema de Gestión de Patrimonio y Elenco</p>
-    </div>
-    <br>
-""", unsafe_allow_html=True)
+
 
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
