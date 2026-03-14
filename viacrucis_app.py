@@ -112,16 +112,6 @@ tabs = st.tabs(nombres_tabs)
 
 db = conectar()
 
-# --- 🏠 PÁGINA DE INICIO ---
-if menu == "🏠 Inicio":
-    st.subheader("¡Saludos, mano!")
-    st.write(f"Estás en el panel central del **Viacrucis 2026**. Aquí puedes gestionar todo lo referente al elenco, los gastos y el inventario de la pasión de Cristo.")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info("💡 **Dato:** Recuerda siempre cerrar sesión si compartes la PC.")
-    with col2:
-        st.success("✅ El sistema está conectado a la base de datos en la nube.")
 
 with tabs[0]:
 
