@@ -241,7 +241,7 @@ with tabs[2]:
 
         query_v = """
 
-        SELECT per.Descripoción, v.piezas, v.descripcion, pa.`Nombre Parroquia` 
+        SELECT per.Descripción, v.piezas, v.descripcion, pa.`Nombre Parroquia` 
 
         FROM vestuario_final v 
 
