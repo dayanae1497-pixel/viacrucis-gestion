@@ -5,7 +5,7 @@ import mysql.connector
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
 def conectar():
-    password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
+   password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
     
     return mysql.connector.connect(
         host="mysql-68077f9-viacrucis2026.d.aivencloud.com", 
