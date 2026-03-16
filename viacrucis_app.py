@@ -101,6 +101,16 @@ if st.sidebar.button("Cerrar Sesión"):
 nombres_tabs = ["👥 Personal", "💰 Economía", "📦 Inventario"]
 
 if st.session_state['usuario_rol'] == 1:
+
+    nombres_tabs.append("✍️ Cargar Data")
+
+
+
+tabs = st.tabs(nombres_tabs)
+
+
+
+if st.session_state.get('usuario_rol') == 1 and len(tabs) > 3:
     with tabs[3]:
         st.header("📝 Registro y Gestión de Datos")
    
@@ -112,20 +122,8 @@ if st.session_state['usuario_rol'] == 1:
             sub_opc = st.selectbox("Selecciona qué registrar:", 
                                    ["Gasto Nuevo", "Abono de Patrocinante", "Nuevo Patrocinante", "Nuevo Participante", "Nuevo Personaje"])
             
-            if sub_opc == "Gasto Nuevo":
-                with st.form("nuevo_gasto"):
-                    con = st.text_input("Concepto")
-                    mon = st.number_input("Monto ($)", min_value=0.0)
-                    fec = st.date_input("Fecha")
-                    if st.form_submit_button("Guardar Gasto"):
-                        cur = db.cursor()
-                        cur.execute("INSERT INTO gastos (concepto, monto, `fecha del gasto`) VALUES (%s, %s, %s)", (con, mon, fec))
-                        db.commit()
-                        st.success("✅ Gasto guardado.")
-                        st.rerun()
-            
-            # ... (Aquí mantienes tus bloques existentes de Abono, Nuevo Patrocinante, Participante y Personaje)
-            # Solo asegúrate de que el flujo de 'elif' sea coherente con sub_opc
+            # Aquí van tus formularios de INSERT (Gasto, Abono, etc.) que ya tenías
+            # ...
 
         elif opc == "Gestionar Existentes":
             st.divider()
@@ -140,31 +138,24 @@ if st.session_state['usuario_rol'] == 1:
                 
                 with st.form("edit_patro"):
                     n_nom = st.text_input("Nombre del Negocio", value=fila['negocio'])
-                    n_mon = st.number_input("Monto Pactado ($)", value=float(fila['monto a pagar']))
+                    n_mon = st.number_input("Monto Pactado (COP)", value=float(fila['monto a pagar']))
                     c1, c2 = st.columns(2)
                     if c1.form_submit_button("💾 Guardar"):
                         cur = db.cursor()
                         cur.execute("UPDATE patrocinantes SET negocio=%s, `monto a pagar`=%s WHERE id_patrocinante=%s", (n_nom, n_mon, id_sel))
                         db.commit()
+                        st.success("¡Cambio guardado!")
                         st.rerun()
                     if c2.form_submit_button("🗑️ Eliminar"):
                         cur = db.cursor()
+                        # Borramos abonos primero por seguridad
                         cur.execute("DELETE FROM pago_patrocinantes WHERE id_patrocinante=%s", (id_sel,))
                         cur.execute("DELETE FROM patrocinantes WHERE id_patrocinante=%s", (id_sel,))
                         db.commit()
                         st.rerun()
 
-            elif modo_gestion == "Gastos":
-                df_g = pd.read_sql("SELECT * FROM gastos", db)
-                id_g = st.selectbox("Gasto", options=df_g['id_gasto'], 
-                                   format_func=lambda x: f"{df_g[df_g['id_gasto']==x]['concepto'].iloc[0]} (${df_g[df_g['id_gasto']==x]['monto'].iloc[0]})")
-                if st.button("🗑️ Eliminar Gasto"):
-                    cur = db.cursor()
-                    cur.execute("DELETE FROM gastos WHERE id_gasto=%s", (id_g,))
-                    db.commit()
-                    st.rerun()
-
             elif modo_gestion == "Participantes":
+                # Nueva función para editar teléfonos de los participantes
                 df_part = pd.read_sql("SELECT id_participante, Nombre, Apellido, teléfono FROM participantes", db)
                 id_p = st.selectbox("Participante", options=df_part['id_participante'], 
                                    format_func=lambda x: f"{df_part[df_part['id_participante']==x]['Nombre'].iloc[0]} {df_part[df_part['id_participante']==x]['Apellido'].iloc[0]}")
@@ -172,33 +163,29 @@ if st.session_state['usuario_rol'] == 1:
                 
                 with st.form("edit_part"):
                     n_tel = st.text_input("Actualizar Teléfono", value=fila_p['teléfono'])
-                    if st.form_submit_button("💾 Actualizar Datos"):
+                    if st.form_submit_button("💾 Actualizar"):
                         cur = db.cursor()
                         cur.execute("UPDATE participantes SET teléfono=%s WHERE id_participante=%s", (n_tel, id_p))
                         db.commit()
-                        st.success("Teléfono actualizado.")
+                        st.success("Datos actualizados.")
                         st.rerun()
 
             elif modo_gestion == "Vestuario":
+                # Para corregir descripción o cantidad de piezas
                 df_v = pd.read_sql("SELECT * FROM vestuario_final", db)
-                id_v = st.selectbox("Pieza", options=df_v['id_vestuario'], format_func=lambda x: df_v[df_v['id_vestuario']==x]['descripcion'].iloc[0])
+                id_v = st.selectbox("Pieza de Vestuario", options=df_v['id_vestuario'], 
+                                   format_func=lambda x: df_v[df_v['id_vestuario']==x]['descripcion'].iloc[0])
+                fila_v = df_v[df_v['id_vestuario'] == id_v].iloc[0]
+                
                 with st.form("edit_v"):
-                    n_desc = st.text_input("Descripción", value=df_v[df_v['id_vestuario']==id_v]['descripcion'].iloc[0])
-                    n_piz = st.number_input("Piezas", value=int(df_v[df_v['id_vestuario']==id_v]['piezas'].iloc[0]))
-                    if st.form_submit_button("💾 Guardar"):
+                    n_desc = st.text_input("Descripción", value=fila_v['descripcion'])
+                    n_piz = st.number_input("Cantidad de Piezas", value=int(fila_v['piezas']))
+                    if st.form_submit_button("💾 Guardar Cambios"):
                         cur = db.cursor()
                         cur.execute("UPDATE vestuario_final SET descripcion=%s, piezas=%s WHERE id_vestuario=%s", (n_desc, n_piz, id_v))
                         db.commit()
                         st.rerun()
 
-# Cierre de conexión al final del script
+# Cerrar conexión siempre al final
 if 'db' in locals() and db.is_connected():
-    db.close()
-
-
-
-
-
-if 'db' in locals() and db.is_connected():
-
     db.close()
