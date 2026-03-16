@@ -127,65 +127,52 @@ if st.session_state.get('usuario_rol') == 1 and len(tabs) > 3:
 
         elif opc == "Gestionar Existentes":
             st.divider()
-            modo_gestion = st.selectbox("Selecciona tabla para Editar/Eliminar:", 
-                                       ["Patrocinantes", "Gastos", "Vestuario", "Participantes"])
-
-            if modo_gestion == "Patrocinantes":
-                df_edit = pd.read_sql("SELECT * FROM patrocinantes", db)
-                id_sel = st.selectbox("Seleccionar Negocio", options=df_edit['id_patrocinante'], 
-                                     format_func=lambda x: df_edit[df_edit['id_patrocinante']==x]['negocio'].iloc[0])
-                fila = df_edit[df_edit['id_patrocinante'] == id_sel].iloc[0]
+            # Aseguramos que la conexión esté activa antes de seguir
+            try:
+                if 'db' not in locals() or not db.is_connected():
+                    db = conectar()
                 
-                with st.form("edit_patro"):
-                    n_nom = st.text_input("Nombre del Negocio", value=fila['negocio'])
-                    n_mon = st.number_input("Monto Pactado (COP)", value=float(fila['monto a pagar']))
-                    c1, c2 = st.columns(2)
-                    if c1.form_submit_button("💾 Guardar"):
-                        cur = db.cursor()
-                        cur.execute("UPDATE patrocinantes SET negocio=%s, `monto a pagar`=%s WHERE id_patrocinante=%s", (n_nom, n_mon, id_sel))
-                        db.commit()
-                        st.success("¡Cambio guardado!")
-                        st.rerun()
-                    if c2.form_submit_button("🗑️ Eliminar"):
-                        cur = db.cursor()
-                        # Borramos abonos primero por seguridad
-                        cur.execute("DELETE FROM pago_patrocinantes WHERE id_patrocinante=%s", (id_sel,))
-                        cur.execute("DELETE FROM patrocinantes WHERE id_patrocinante=%s", (id_sel,))
-                        db.commit()
-                        st.rerun()
+                modo_gestion = st.selectbox("Selecciona tabla para Editar/Eliminar:", 
+                                           ["Patrocinantes", "Gastos", "Vestuario", "Participantes"])
 
-            elif modo_gestion == "Participantes":
-                # Nueva función para editar teléfonos de los participantes
-                df_part = pd.read_sql("SELECT id_participante, Nombre, Apellido, teléfono FROM participantes", db)
-                id_p = st.selectbox("Participante", options=df_part['id_participante'], 
-                                   format_func=lambda x: f"{df_part[df_part['id_participante']==x]['Nombre'].iloc[0]} {df_part[df_part['id_participante']==x]['Apellido'].iloc[0]}")
-                fila_p = df_part[df_part['id_participante'] == id_p].iloc[0]
-                
-                with st.form("edit_part"):
-                    n_tel = st.text_input("Actualizar Teléfono", value=fila_p['teléfono'])
-                    if st.form_submit_button("💾 Actualizar"):
-                        cur = db.cursor()
-                        cur.execute("UPDATE participantes SET teléfono=%s WHERE id_participante=%s", (n_tel, id_p))
-                        db.commit()
-                        st.success("Datos actualizados.")
-                        st.rerun()
+                if modo_gestion == "Patrocinantes":
+                    df_edit = pd.read_sql("SELECT * FROM patrocinantes", db)
+                    # ... (resto de tu código de patrocinantes)
 
-            elif modo_gestion == "Vestuario":
-                # Para corregir descripción o cantidad de piezas
-                df_v = pd.read_sql("SELECT * FROM vestuario_final", db)
-                id_v = st.selectbox("Pieza de Vestuario", options=df_v['id_vestuario'], 
-                                   format_func=lambda x: df_v[df_v['id_vestuario']==x]['descripcion'].iloc[0])
-                fila_v = df_v[df_v['id_vestuario'] == id_v].iloc[0]
-                
-                with st.form("edit_v"):
-                    n_desc = st.text_input("Descripción", value=fila_v['descripcion'])
-                    n_piz = st.number_input("Cantidad de Piezas", value=int(fila_v['piezas']))
-                    if st.form_submit_button("💾 Guardar Cambios"):
-                        cur = db.cursor()
-                        cur.execute("UPDATE vestuario_final SET descripcion=%s, piezas=%s WHERE id_vestuario=%s", (n_desc, n_piz, id_v))
-                        db.commit()
-                        st.rerun()
+                elif modo_gestion == "Gastos":
+                    df_g = pd.read_sql("SELECT * FROM gastos", db)
+                    # ... (resto de tu código de gastos)
 
-# Cerrar conexión siempre al final
-if 'db' in locals() and db.is_connected():
-    db.close()
+                elif modo_gestion == "Participantes":
+                    # Aquí es donde fallaba antes si db no estaba lista
+                    df_part = pd.read_sql("SELECT id_participante, Nombre, Apellido, teléfono FROM participantes", db)
+                    id_p = st.selectbox("Participante", options=df_part['id_participante'], 
+                                       format_func=lambda x: f"{df_part[df_part['id_participante']==x]['Nombre'].iloc[0]} {df_part[df_part['id_participante']==x]['Apellido'].iloc[0]}")
+                    fila_p = df_part[df_part['id_participante'] == id_p].iloc[0]
+                    
+                    with st.form("edit_part"):
+                        n_tel = st.text_input("Actualizar Teléfono", value=fila_p['teléfono'])
+                        if st.form_submit_button("💾 Actualizar Datos"):
+                            cur = db.cursor()
+                            cur.execute("UPDATE participantes SET teléfono=%s WHERE id_participante=%s", (n_tel, id_p))
+                            db.commit()
+                            st.success("✅ Teléfono actualizado.")
+                            st.rerun()
+
+                elif modo_gestion == "Vestuario":
+                    # Línea 175 corregida: se ejecuta solo si db existe
+                    df_v = pd.read_sql("SELECT * FROM vestuario_final", db)
+                    id_v = st.selectbox("Pieza", options=df_v['id_vestuario'], 
+                                       format_func=lambda x: df_v[df_v['id_vestuario']==x]['descripcion'].iloc[0])
+                    
+                    with st.form("edit_v"):
+                        n_desc = st.text_input("Descripción", value=df_v[df_v['id_vestuario']==id_v]['descripcion'].iloc[0])
+                        n_piz = st.number_input("Piezas", value=int(df_v[df_v['id_vestuario']==id_v]['piezas'].iloc[0]))
+                        if st.form_submit_button("💾 Guardar"):
+                            cur = db.cursor()
+                            cur.execute("UPDATE vestuario_final SET descripcion=%s, piezas=%s WHERE id_vestuario=%s", (n_desc, n_piz, id_v))
+                            db.commit()
+                            st.rerun()
+                            
+            except Exception as e:
+                st.error(f"⚠️ Error de conexión: Asegúrate de que Aiven esté en 'Running'. Detalle: {e}")
