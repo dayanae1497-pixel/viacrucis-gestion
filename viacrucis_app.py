@@ -29,37 +29,6 @@ def conectar():
         user="avnadmin", 
 
         password=password_db, 
-import streamlit as st
-
-import pandas as pd
-
-import mysql.connector
-
-
-
-st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
-
-st.markdown("""
-    <div style="background-color:#461212;padding:15px;border-radius:10px;text-align:center;">
-        <h1 style="color:white;margin:0;">⛪ Viacrucis en Vivo 2026</h1>
-        <p style="color:white;opacity:0.8;">Sistema de Gestión de Patrimonio y Elenco</p>
-    </div>
-    <br>
-""", unsafe_allow_html=True)
-
-def conectar():
-
-    password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
-
-    
-
-    return mysql.connector.connect(
-
-        host="mysql-68077f9-viacrucis2026.d.aivencloud.com", 
-
-        user="avnadmin", 
-
-        password=password_db, 
 
         port=18358, 
 
@@ -608,6 +577,13 @@ if st.session_state['usuario_rol'] == 1:
 
                 st.error(f"⚠️ Hubo un detalle: {e}")
 
+
+
+
+
+if 'db' in locals() and db.is_connected():
+
+    db.close()
 
 
 
