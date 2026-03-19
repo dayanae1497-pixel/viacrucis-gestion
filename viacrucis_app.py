@@ -302,7 +302,7 @@ with tabs[1]:
      # --- Dentro de with tabs[1]: ---
     st.subheader("📊 Detalle de Egresos")
 
-     try:
+try:
     # Consultamos todos los gastos registrados
          df_gastos_tabla = pd.read_sql("SELECT `fecha del gasto` as Fecha, concepto as Concepto, monto as `Monto (COP)` FROM gastos ORDER BY `fecha del gasto` DESC", db)
     
