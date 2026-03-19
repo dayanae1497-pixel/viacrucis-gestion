@@ -300,7 +300,7 @@ with tabs[1]:
 
 
      # --- Dentro de with tabs[1]: ---
-     st.subheader("📊 Detalle de Egresos")
+    st.subheader("📊 Detalle de Egresos")
 
      try:
     # Consultamos todos los gastos registrados
