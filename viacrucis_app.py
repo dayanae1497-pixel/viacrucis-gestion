@@ -299,7 +299,21 @@ with tabs[1]:
 
 
 
+     # --- Dentro de with tabs[1]: ---
+     st.subheader("📊 Detalle de Egresos")
 
+     try:
+    # Consultamos todos los gastos registrados
+         df_gastos_tabla = pd.read_sql("SELECT `fecha del gasto` as Fecha, concepto as Concepto, monto as `Monto (COP)` FROM gastos ORDER BY `fecha del gasto` DESC", db)
+    
+         if not df_gastos_tabla.empty:
+        # Mostramos la tabla con un formato limpio
+             st.dataframe(df_gastos_tabla, use_container_width=True, hide_index=True)
+         else:
+             st.info("Aún no hay gastos registrados.")
+        
+     except Exception as e:
+         st.error(f"No se pudo cargar la tabla de gastos: {e}")
 
 with tabs[2]:
 
