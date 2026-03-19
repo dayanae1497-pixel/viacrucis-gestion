@@ -312,7 +312,7 @@ try:
          else:
              st.info("Aún no hay gastos registrados.")
         
-     except Exception as e:
+except Exception as e:
          st.error(f"No se pudo cargar la tabla de gastos: {e}")
 
 with tabs[2]:
