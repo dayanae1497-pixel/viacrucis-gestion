@@ -349,259 +349,173 @@ with tabs[2]:
 
 
 
-if st.session_state['usuario_rol'] == 1:
-
+if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
-
-        st.header("📝 Registro de Datos")
-
-   
-
-        opc = st.radio("¿Qué deseas registrar?", 
-
-                        ["Gasto Nuevo", "Abono de Patrocinante", "Nuevo Patrocinante", "Nuevo Participante", "Nuevo Personaje"], 
-
-                        horizontal=True)
-
+        st.header("🎛️ Panel de Control Total")
         
-
-        if opc == "Gasto Nuevo":
-
-            with st.form("nuevo_gasto"):
-
-                con = st.text_input("Concepto")
-
-                mon = st.number_input("Monto ($)", min_value=0.0)
-
-                fec = st.date_input("Fecha")
-
-                if st.form_submit_button("Guardar Gasto"):
-
-                    cur = db.cursor()
-
-                    cur.execute("INSERT INTO gastos (concepto, monto, `fecha del gasto`) VALUES (%s, %s, %s)", (con, mon, fec))
-
-                    db.commit()
-
-                    st.success("✅ Gasto guardado con éxito.")
-
-                    st.rerun()
-
+        # --- SECCIÓN 1: EDICIÓN DE TABLAS ---
+        tabla_maestra = st.selectbox(
+            "Selecciona la base de datos que deseas gestionar:",
+            ["Participantes", "Gastos", "Vestuario", "Patrocinantes"]
+        )
         
-
-        elif opc == "Abono de Patrocinante":
-
-           df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
-
-           with st.form("nuevo_abono"):
-
-              p_id = st.selectbox("Negocio", options=df_pats['id_patrocinante'], 
-
-                                  format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
-
-              fecha_pago = st.date_input("Fecha del Abono")
-
-              abo = st.number_input("Monto Abono ($)", min_value=0.0)
-
+        mapping = {
+            "Participantes": "participantes",
+            "Gastos": "gastos",
+            "Vestuario": "vestuario_final",
+            "Patrocinantes": "patrocinantes"
+        }
+        
+        nombre_tabla_db = mapping[tabla_maestra]
+        
+        try:
+            query = f"SELECT * FROM {nombre_tabla_db}"
+            df_maestro = pd.read_sql(query, db)
             
-
-              if st.form_submit_button("Registrar Abono"):
-
-                  try:
-
-                      cur = db.cursor()
-
-                     
-
-                      sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, `fecha de abono`) VALUES (%s, %s, %s)"
-
-                      valores = (int(p_id), float(abo), fecha_pago)
-
-                      cur.execute(sql, valores)
-
-                      db.commit()
-
-                      cur.close()
-
-                      st.success(f"✅ Abono de ${abo} registrado.")
-
-                      st.rerun()
-
-                  except Exception as e:
-
-                      st.error(f"❌ Error: {e}")
-
-
-
-        elif opc == "Nuevo Patrocinante":
-
-            with st.form("form_nuevo_patro"):
-
-                nombre_negocio = st.text_input("Nombre del Negocio o Persona")
-
-                telf = st.text_input("Teléfono de contacto")
-
-                monto_pactado = st.number_input("Monto a Pagar (Pacto en $)", min_value=0.0)
-
-                if st.form_submit_button("Registrar Nuevo Patrocinante"):
-
-                    if nombre_negocio:
-
-                        cur = db.cursor()
-
-                        sql = "INSERT INTO patrocinantes (negocio, teléfono, `monto a pagar`) VALUES (%s, %s, %s)"
-
-                        cur.execute(sql, (nombre_negocio, telf, monto_pactado))
-
-                        db.commit()
-
-                        st.success(f"✅ ¡{nombre_negocio} agregado!")
-
-                        st.rerun()
-
-                    else:
-
-                        st.error("Mano, ponle el nombre al negocio por lo menos.")
-
-
-
-    
-
-        elif opc == "Nuevo Participante":
-
-            df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
-
-            df_par = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
-
-            df_rol = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
-
-
-
-            with st.form("form_nuevo_participante"):
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-
-                    nom = st.text_input("Nombre")
-
-                    ape = st.text_input("Apellido")
-
-                    eda = st.number_input("Edad", min_value=0)
-
-                with col2:
-
-                    telf_p = st.text_input("Teléfono")
-
-                    par_id = st.selectbox("Parroquia", options=df_par['id_parroquia'], 
-
-                                         format_func=lambda x: df_par[df_par['id_parroquia']==x]['Nombre Parroquia'].iloc[0])
-
-                    com_id = st.selectbox("Comisión", options=df_com['id_comsion'], 
-
-                                         format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
-
-            
-
-                rol_id = st.selectbox("Rol/Personaje", options=df_rol['id_rol'], 
-
-                                     format_func=lambda x: df_rol[df_rol['id_rol']==x]['Descripción'].iloc[0])
-
-
-
-                if st.form_submit_button("Registrar Participante"):
-
-                    try:
-
-                        cur = db.cursor()
-
-                        sql = """INSERT INTO participantes (Nombre, Apellido, Edad, teléfono, id_comision, id_parroquia, id_rol) 
-
-                                 VALUES (%s, %s, %s, %s, %s, %s, %s)"""
-
-                        cur.execute(sql, (nom, ape, eda, telf_p, com_id, par_id, rol_id))
-
-                        db.commit()
-
-                        cur.close()
-
-                        st.success(f"✅ {nom} {ape} ha sido registrado.")
-
-                        st.rerun()
-
-                    except Exception as e:
-
-                        st.error(f"❌ Error en base de datos: {e}")
-
-
-
-    
-
-        elif opc == "Nuevo Personaje":
-
-            try:
-
-            
-
-                df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
-
-                df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
-
-
-
-                st.subheader("🎭 Asignar Papel del Elenco")
-
-            
-
-                with st.form("form_personaje"):
-
-               
-
-                    p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
-
-                                       format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
-
-                  
-
-              
-
-                    nombre_papel = st.text_input("Nombre del Personaje")
-
-
-
-                    if st.form_submit_button("Guardar Personaje"):
-
-                        cur = db.cursor()
-
+            st.subheader(f"Edición Masiva: {tabla_maestra}")
+            st.info("💡 Haz doble clic para editar. Para eliminar, selecciona la fila y pulsa 'Delete'.")
+
+            df_editado = st.data_editor(
+                df_maestro, 
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+                key=f"editor_{nombre_tabla_db}"
+            )
+
+            if st.button(f"💾 Guardar Cambios en {tabla_maestra}"):
+                cur = db.cursor()
+                try:
+                    # USAMOS ESTO PARA EVITAR EL ERROR DE LLAVES FORÁNEAS
+                    cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                    cur.execute(f"DELETE FROM {nombre_tabla_db}") 
                     
+                    cols = ", ".join([f"`{c}`" for c in df_editado.columns])
+                    placeholders = ", ".join(["%s"] * len(df_editado.columns))
+                    sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
+                    
+                    for _, row in df_editado.iterrows():
+                        # Limpiamos valores NaT o NaN para que MySQL no explote
+                        valores = tuple(None if pd.isna(v) else v for v in row)
+                        cur.execute(sql_insert, valores)
+                    
+                    cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                    db.commit()
+                    st.success(f"✅ ¡{tabla_maestra} actualizada!")
+                    st.rerun()
+                except Exception as err:
+                    db.rollback()
+                    st.error(f"Error al guardar: {err}")
+                finally:
+                    cur.close()
 
-                        sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
+        except Exception as e:
+            st.error(f"Error al cargar datos: {e}")
 
-                        cur.execute(sql, (nombre_papel, int(p_id)))
+        st.divider()
 
-                        db.commit()
+        # --- SECCIÓN 2: GENERACIÓN DE PDF (ESTRATEGIA SEGURA) ---
+st.subheader("📄 Reporte Oficial Viacrucis 2026")
+def generar_reporte_final(df_p, df_v, df_g, df_pat):
+    from fpdf import FPDF
+    
+    class PDF(FPDF):
+        def header(self):
+            # Banner superior azul oscuro (Estilo)
+            self.set_fill_color(30, 41, 59) 
+            self.rect(0, 0, 210, 35, 'F')
+            self.set_text_color(255, 255, 255)
+            self.set_font('Arial', 'B', 16)
+            self.cell(0, 10, 'SISTEMA DE GESTIÓN VIACRUCIS 2026', 0, 1, 'C')
+            self.ln(15)
 
-                        cur.close()
+    pdf = PDF()
+    pdf.add_page()
+    
+    # --- SECCIÓN: ELENCO ---
+    pdf.set_text_color(0)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, 'LISTADO DE PARTICIPANTES', 0, 1)
+    
+    # Encabezados de la tabla
+    pdf.set_font('Arial', 'B', 9)
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(60, 8, 'Nombre Completo', 1, 0, 'C', 1)
+    pdf.cell(40, 8, 'Teléfono', 1, 0, 'C', 1)
+    pdf.cell(90, 8, 'Parroquia', 1, 1, 'C', 1)
 
-                        st.success(f"✅ ¡{nombre_papel} asignado correctamente!")
+    # DATOS REALES (Ajustados a tu DB)
+    pdf.set_font('Arial', '', 8)
+    for _, row in df_p.iterrows():
+        # Aquí es donde vinculamos con tu DB:
+        # Si tus columnas en MySQL son 'Nombre' y 'Apellido' (con Mayúscula)
+        nombre_completo = f"{row.get('Nombre', '')} {row.get('Apellido', '')}"
+        
+        # Si en tu DB la columna es 'teléfono' (con minúscula o acento)
+        # El .get es como un "seguro": si no lo halla, pone lo que está después de la coma
+        telefono = str(row.get('teléfono', row.get('telefono', 'S/N')))
+        parroquia = str(row.get('id_parroquia', 'N/A'))
 
-                        st.rerun()
+        pdf.cell(60, 7, nombre_completo[:35], 1)
+        pdf.cell(40, 7, telefono, 1, 0, 'C')
+        pdf.cell(90, 7, parroquia[:50], 1, 1)
 
-            except Exception as e:
+    pdf.ln(10)
 
-                st.error(f"⚠️ Hubo un detalle: {e}")
+    # --- SECCIÓN: VESTUARIO ---
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, 'CONTROL DE VESTUARIO', 0, 1)
+    
+    pdf.set_font('Arial', 'B', 9)
+    pdf.set_fill_color(255, 235, 235)
+    pdf.cell(25, 4, 'Personaje', 1, 0, 'C', 1)
+    pdf.cell(25, 4, 'Piezas', 1, 0, 'C', 1)
+    pdf.cell(120, 4, 'Descripción', 1, 0, 'C', 1)
+    pdf.cell(25, 4, 'Parroquia', 1, 1, 'C', 1)
+    
+    pdf.set_font('Arial', '', 8)
+    for _, row in df_v.iterrows():
+        # Ajustado a tu tabla 'vestuario_final'
+        Personaje = str(row.get('id_personaje', 'N/A'))
+        Piezas = str(row.get('piezas', 'N/A'))
+        Descripción = str(row.get('descripcion', 'N/A'))
+        Parroquia = str(row.get('id_parroquia', 'N/A'))
+        
+        pdf.cell(25, 3, Personaje, 1, 0, 'C', 1)
+        pdf.cell(25, 3, Piezas, 1, 0, 'C', 1)
+        pdf.cell(120, 3, Descripción, 1, 0, 'C', 1)
+        pdf.cell(25, 3, Parroquia, 1, 1, 'C', 1)
 
+    return pdf.output(dest='S')
+# En lugar de generarlo de una, ponemos un botón disparador
+if st.button("🚀 Preparar Reporte Maestro"):
+    try:
+        with st.spinner("Compilando toda la información..."):
+            # Traemos todas las tablas necesarias
 
+            df_p = pd.read_sql("SELECT * FROM participantes", db)
+            df_v = pd.read_sql("SELECT * FROM vestuario_final", db)
+            df_g = pd.read_sql("SELECT * FROM gastos", db)
+            df_pat = pd.read_sql("SELECT * FROM patrocinantes", db)
+            df_p = pd.read_sql(query_p, db)
+            df_pagos = pd.read_sql(q_estilo, db)
+            st.dataframe(pd.read_sql(query_v, db))
+            
+            # Generamos pasando los 4 dataframes
+            pdf_raw = generar_reporte_final(df_p, df_v, df_g, df_pat)
+            
+            st.success("✅ ¡Reporte completo generado!")
+            st.download_button(
+                label="⬇️ Descargar Reporte PDF",
+                data=bytes(pdf_raw),
+                file_name=f"Reporte_Viacrucis_Final_{datetime.now().strftime('%d_%m')}.pdf",
+                mime="application/pdf"
+            )
+    except Exception as e:
+        st.error(f"Error al compilar el reporte: {e}")
 
-
-
-if 'db' in locals() and db.is_connected():
-
+if db.is_connected():
     db.close()
 
-
-
-
-if 'db' in locals() and db.is_connected():
 
     db.close()
