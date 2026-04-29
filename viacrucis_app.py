@@ -433,10 +433,23 @@ def generar_reporte_final(df_p, df_v, df_g, df_pat):
     pdf.add_page()
 
     query_p = """
-    SELECT p.*, pa.Nombre_Parroquia 
+    SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
+
+            r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
+
+            c.Descripción AS Comisión, p.teléfono AS Teléfono
+
     FROM participantes p
-    LEFT JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
-"""
+
+    JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
+
+    JOIN comisiones c ON p.id_comision = c.id_comsion
+
+    JOIN roles r ON p.id_rol = r.id_rol
+
+    LEFT JOIN personajes per ON p.id_participante = per.id_participante
+
+    """
     df_p = pd.read_sql(query_p, db)
     
     # --- SECCIÓN: ELENCO ---
