@@ -493,24 +493,24 @@ def generar_reporte_final(df_p, df_v, df_g, df_pat):
 if st.button("🚀 Preparar Reporte Maestro"):
     try:
         with st.spinner("Compilando toda la información..."):
-             query_pd = """
-            SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
+         query_pd = """
+        SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
 
-            r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
+        r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
 
-            c.Descripción AS Comisión, p.teléfono AS Teléfono
+        c.Descripción AS Comisión, p.teléfono AS Teléfono
 
-            FROM participantes p
+        FROM participantes p
 
-            JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
+        JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
 
-            JOIN comisiones c ON p.id_comision = c.id_comsion
+        JOIN comisiones c ON p.id_comision = c.id_comsion
 
-            JOIN roles r ON p.id_rol = r.id_rol
+        JOIN roles r ON p.id_rol = r.id_rol
 
-            LEFT JOIN personajes per ON p.id_participante = per.id_participante
+        LEFT JOIN personajes per ON p.id_participante = per.id_participante
         
-            """# Traemos todas las tablas necesarias
+        """# Traemos todas las tablas necesarias
 
             df_p = pd.read_sql("SELECT * FROM participantes", db)
             df_v = pd.read_sql("SELECT * FROM vestuario_final", db)
