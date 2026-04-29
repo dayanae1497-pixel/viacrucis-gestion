@@ -431,6 +431,13 @@ def generar_reporte_final(df_p, df_v, df_g, df_pat):
 
     pdf = PDF()
     pdf.add_page()
+
+    query_p = """
+    SELECT p.*, pa.nombre_parroquia 
+    FROM participantes p
+    LEFT JOIN parroquias pa ON p.id_parroquia = pa.id_parroquia
+"""
+df_p = pd.read_sql(query_p, db)
     
     # --- SECCIÓN: ELENCO ---
     pdf.set_text_color(0)
