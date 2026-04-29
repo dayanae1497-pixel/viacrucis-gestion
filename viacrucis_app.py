@@ -432,24 +432,6 @@ def generar_reporte_final(df_p, df_v, df_g, df_pat):
     pdf = PDF()
     pdf.add_page()
 
-    query_p = """
-    SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
-
-            r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
-
-            c.Descripción AS Comisión, p.teléfono AS Teléfono
-
-    FROM participantes p
-
-    JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
-
-    JOIN comisiones c ON p.id_comision = c.id_comsion
-
-    JOIN roles r ON p.id_rol = r.id_rol
-
-    LEFT JOIN personajes per ON p.id_participante = per.id_participante
-
-    """
     df_p = pd.read_sql(query_p, db)
     
     # --- SECCIÓN: ELENCO ---
@@ -473,7 +455,7 @@ def generar_reporte_final(df_p, df_v, df_g, df_pat):
         
         # Si en tu DB la columna es 'teléfono' (con minúscula o acento)
         # El .get es como un "seguro": si no lo halla, pone lo que está después de la coma
-        telefono = str(row.get('teléfono', row.get('telefono', 'S/N')))
+        telefono = str(row.get('teléfono', row.get('teléfono', 'S/N')))
         parroquia = str(row.get('id_parroquia', 'N/A'))
 
         pdf.cell(60, 7, nombre_completo[:35], 1)
@@ -520,7 +502,24 @@ if st.button("🚀 Preparar Reporte Maestro"):
             df_p = pd.read_sql(query_p, db)
             df_pagos = pd.read_sql(q_estilo, db)
             st.dataframe(pd.read_sql(query_v, db))
-            
+             query_p = """
+            SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
+
+            r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
+
+            c.Descripción AS Comisión, p.teléfono AS Teléfono
+
+            FROM participantes p
+
+            JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
+
+            JOIN comisiones c ON p.id_comision = c.id_comsion
+
+            JOIN roles r ON p.id_rol = r.id_rol
+
+            LEFT JOIN personajes per ON p.id_participante = per.id_participante
+        
+            """
             # Generamos pasando los 4 dataframes
             pdf_raw = generar_reporte_final(df_p, df_v, df_g, df_pat)
             
