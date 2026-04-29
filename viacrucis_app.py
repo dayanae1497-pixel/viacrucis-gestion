@@ -433,7 +433,7 @@ def generar_reporte_final(df_p, df_v, df_g, df_pat):
     pdf.add_page()
 
     query_p = """
-    SELECT p.*, pa.nombre_parroquia 
+    SELECT p.*, pa.Nombre_Parroquia 
     FROM participantes p
     LEFT JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
 """
