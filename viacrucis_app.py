@@ -502,7 +502,7 @@ if st.button("🚀 Preparar Reporte Maestro"):
             df_p = pd.read_sql(query_p, db)
             df_pagos = pd.read_sql(q_estilo, db)
             st.dataframe(pd.read_sql(query_v, db))
-             query_p = """
+            query_p = """
             SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
 
             r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
