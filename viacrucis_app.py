@@ -493,16 +493,7 @@ def generar_reporte_final(df_p, df_v, df_g, df_pat):
 if st.button("🚀 Preparar Reporte Maestro"):
     try:
         with st.spinner("Compilando toda la información..."):
-            # Traemos todas las tablas necesarias
-
-            df_p = pd.read_sql("SELECT * FROM participantes", db)
-            df_v = pd.read_sql("SELECT * FROM vestuario_final", db)
-            df_g = pd.read_sql("SELECT * FROM gastos", db)
-            df_pat = pd.read_sql("SELECT * FROM patrocinantes", db)
-            df_p = pd.read_sql(query_p, db)
-            df_pagos = pd.read_sql(q_estilo, db)
-            st.dataframe(pd.read_sql(query_v, db))
-            query_p = """
+             query_pd = """
             SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
 
             r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
@@ -519,7 +510,16 @@ if st.button("🚀 Preparar Reporte Maestro"):
 
             LEFT JOIN personajes per ON p.id_participante = per.id_participante
         
-            """
+            """# Traemos todas las tablas necesarias
+
+            df_p = pd.read_sql("SELECT * FROM participantes", db)
+            df_v = pd.read_sql("SELECT * FROM vestuario_final", db)
+            df_g = pd.read_sql("SELECT * FROM gastos", db)
+            df_pat = pd.read_sql("SELECT * FROM patrocinantes", db)
+            df_p = pd.read_sql(query_pd, db)
+            df_pagos = pd.read_sql(q_estilo, db)
+            st.dataframe(pd.read_sql(query_pd, db))
+           
             # Generamos pasando los 4 dataframes
             pdf_raw = generar_reporte_final(df_p, df_v, df_g, df_pat)
             
