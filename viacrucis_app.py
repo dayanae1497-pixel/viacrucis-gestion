@@ -3,8 +3,7 @@ import streamlit as st
 import pandas as pd
 
 import mysql.connector
-from fpdf import FPDF 
-from datetime import datetime
+
 
 
 
