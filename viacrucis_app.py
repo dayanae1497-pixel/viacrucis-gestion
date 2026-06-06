@@ -222,6 +222,37 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
+with tabs[2]:
+
+    cv, cu = st.columns(2)
+
+    with cv:
+
+        st.subheader("👕 Vestuario")
+
+       
+
+        query_v = """
+
+        SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia` 
+
+        FROM vestuario_final v 
+
+        JOIN parroquia pa ON v.id_parroquia = pa.id_parroquia
+
+        """
+
+        st.dataframe(pd.read_sql(query_v, db), hide_index=True)
+
+    with cu:
+
+        st.subheader("🛠️ Utilería")
+
+ 
+
+        st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
+
+
 # --- TAB 3: DATA (VERSIÓN DEFINITIVA CORREGIDA POST-CONFIRMACIÓN) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
