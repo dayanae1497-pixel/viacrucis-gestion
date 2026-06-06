@@ -222,7 +222,7 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- TAB 3: DATA (FILTRADO INTELIGENTE DE MODIFICACIONES) ---
+# --- TAB 3: DATA (BLOQUEO SELECTIVO Y RESTAURACIÓN INMEDIATA) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -236,15 +236,17 @@ if st.session_state.get('usuario_rol') == 1:
         mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # INICIALIZACIÓN DEL BUFFER DE SEGURIDAD EN MEMORIA
+        # 1. INICIALIZACIÓN DE BUFFERS Y CONTROLES DE REINICIO
         if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
             st.session_state.tabla_actual = df_original.copy()
-            st.session_state.backup_data = df_original.copy()  # Respaldo estático e inmutable
+            st.session_state.backup_data = df_original.copy()  # Respaldo inmutable
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
-            st.session_state.bloqueo_advertencia = False       
+            st.session_state.bloqueo_advertencia = False
+            if "editor_version" not in st.session_state:
+                st.session_state.editor_version = 0
 
-        # ALERTAS DE RETROALIMENTACIÓN POST-RECARGA
+        # ALERTAS DE RETROALIMENTACIÓN DE ACCIONES
         if st.session_state.get("guardado_exitoso"):
             st.success("🎉 ¡Información sincronizada en la Base de Datos!")
             del st.session_state["guardado_exitoso"]
@@ -253,41 +255,43 @@ if st.session_state.get('usuario_rol') == 1:
             st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
             del st.session_state["cambios_revertidos"]
 
-        # --- ESCENARIO A: FLUJO NORMAL DE EDICIÓN ---
+        # --- ESCENARIO A: FLUJO DE TRABAJO (SÓLO TABLA VISIBLE) ---
         if not st.session_state.get("bloqueo_advertencia", False):
+            # Usamos una key dinámica combinando el nombre de la tabla y una versión numérica
+            key_dinamica = f"editor_{nombre_tabla_db}_{st.session_state.editor_version}"
+            
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic", 
                 use_container_width=True, 
                 hide_index=True, 
-                key="editor_maestro_final"
+                key=key_dinamica
             )
 
-            # CONTROL DE DETECCIÓN LÓGICA DE MODIFICACIONES SELECTIVAS
-            cambios = st.session_state.editor_maestro_final
-            
-            # Condición crítica: Solo salta el aviso si se ELIMINAN filas o se MODIFICAN celdas existentes
+            # INSPECCIÓN DE CAMBIOS REALIZADOS
+            cambios = st.session_state[key_dinamica]
             hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
             hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
-            
-            # Si hay inserciones nuevas (added_rows), este bloque se saltará sin activar la advertencia
+            hubo_adicion = len(cambios.get("added_rows", [])) > 0
+
+            # SI ELIMINA O EDITA DATOS PREEXISTENTES: Congelamos y mandamos al Escenario B
             if hubo_eliminacion or hubo_modificacion:
                 st.session_state.df_congelado_cambios = df_editado.copy()
                 st.session_state.bloqueo_advertencia = True
                 st.rerun()
                 
-            # Si el usuario solo agregó registros nuevos, podemos actualizar la tabla_actual directamente sin bloquear
-            elif len(cambios.get("added_rows", [])) > 0:
+            # SI SÓLO ESTÁ AGREGANDO REGISTROS NUEVOS: Guardamos en memoria sin interrumpir
+            elif hubo_adicion:
                 st.session_state.tabla_actual = df_editado.copy()
 
-        # --- ESCENARIO B: PANTALLA DE CONFIRMACIÓN CRÍTICA ---
+        # --- ESCENARIO B: PANTALLA DE CONFIRMACIÓN (BLOQUEA LA TABLA PARA PREVENIR ERRORES) ---
         else:
             st.markdown(f"""
                 <div class="aviso-seguridad-box">
                     <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD CRÍTICO ⚠️</p>
-                    <h2 style="color: #000000; font-size: 34px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
+                    <h2 style="color: #000000; font-size: 32px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
                     <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
-                        Has detectado una modificación o eliminación de registros existentes en la tabla '{tabla_maestra}'.<br>El sistema mantendrá bloqueada la edición hasta que decidas:
+                        Has editado o eliminado registros existentes en la tabla '{tabla_maestra}'.<br>El sistema mantendrá bloqueada la pantalla hasta que decidas:
                     </p>
                 </div>
             """, unsafe_allow_html=True)
@@ -329,8 +333,11 @@ if st.session_state.get('usuario_rol') == 1:
                     
             with col_no:
                 if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    # Forzamos la restauración desde el backup inmutable original
+                    # 1. Forzamos la restauración de los datos desde el backup inmutable
                     st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                    # 2. Incrementamos la versión de la key para obligar a Streamlit a redibujar la tabla limpia
+                    st.session_state.editor_version += 1
+                    # 3. Quitamos el bloqueo
                     st.session_state.cambios_revertidos = True
                     st.session_state.bloqueo_advertencia = False
                     st.rerun()
