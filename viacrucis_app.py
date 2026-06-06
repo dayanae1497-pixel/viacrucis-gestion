@@ -222,7 +222,7 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- TAB 3: DATA (VERSIÓN DEFINITIVA CORREGIDA: PERMITE AGREGAR DATOS) ---
+# --- TAB 3: DATA (FILTRADO INTELIGENTE DE MODIFICACIONES) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -236,15 +236,15 @@ if st.session_state.get('usuario_rol') == 1:
         mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # INICIALIZACIÓN DE BUFFERS
+        # INICIALIZACIÓN DEL BUFFER DE SEGURIDAD EN MEMORIA
         if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
             st.session_state.tabla_actual = df_original.copy()
             st.session_state.backup_data = df_original.copy()  # Respaldo estático e inmutable
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
-            st.session_state.bloqueo_advertencia = False
+            st.session_state.bloqueo_advertencia = False       
 
-        # ALERTAS DE FEEDBACK AL REDIBUJAR LA PÁGINA
+        # ALERTAS DE RETROALIMENTACIÓN POST-RECARGA
         if st.session_state.get("guardado_exitoso"):
             st.success("🎉 ¡Información sincronizada en la Base de Datos!")
             del st.session_state["guardado_exitoso"]
@@ -253,40 +253,47 @@ if st.session_state.get('usuario_rol') == 1:
             st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
             del st.session_state["cambios_revertidos"]
 
-        # 1. LA TABLA SE MANTIENE SIEMPRE VISIBLE PARA PODER AGREGAR INFORMACIÓN
-        df_editado = st.data_editor(
-            st.session_state.tabla_actual, 
-            num_rows="dynamic", 
-            use_container_width=True, 
-            hide_index=True, 
-            key="editor_maestro_final"
-        )
+        # --- ESCENARIO A: FLUJO NORMAL DE EDICIÓN ---
+        if not st.session_state.get("bloqueo_advertencia", False):
+            df_editado = st.data_editor(
+                st.session_state.tabla_actual, 
+                num_rows="dynamic", 
+                use_container_width=True, 
+                hide_index=True, 
+                key="editor_maestro_final"
+            )
 
-        # CONTROL DE DETECCIÓN LÓGICA DE MODIFICACIONES
-        cambios = st.session_state.editor_maestro_final
-        hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or len(cambios.get("added_rows", {})) > 0 or len(cambios.get("deleted_rows", {})) > 0
+            # CONTROL DE DETECCIÓN LÓGICA DE MODIFICACIONES SELECTIVAS
+            cambios = st.session_state.editor_maestro_final
+            
+            # Condición crítica: Solo salta el aviso si se ELIMINAN filas o se MODIFICAN celdas existentes
+            hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
+            hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
+            
+            # Si hay inserciones nuevas (added_rows), este bloque se saltará sin activar la advertencia
+            if hubo_eliminacion or hubo_modificacion:
+                st.session_state.df_congelado_cambios = df_editado.copy()
+                st.session_state.bloqueo_advertencia = True
+                st.rerun()
+                
+            # Si el usuario solo agregó registros nuevos, podemos actualizar la tabla_actual directamente sin bloquear
+            elif len(cambios.get("added_rows", [])) > 0:
+                st.session_state.tabla_actual = df_editado.copy()
 
-        # Si el usuario modifica celdas o agrega líneas nuevas, guardamos los datos dinámicamente y activamos el aviso abajo
-        if hubo_cambios and not st.session_state.bloqueo_advertencia:
-            st.session_state.bloqueo_advertencia = True
-            st.rerun()
-        elif not hubo_cambios and st.session_state.bloqueo_advertencia:
-            st.session_state.bloqueo_advertencia = False
-            st.rerun()
-
-        # 2. EL AVISO APARECE ABAJO EN FORMA DE SECCIÓN CRÍTICA DE CONFIRMACIÓN
-        if st.session_state.get("bloqueo_advertencia", False):
+        # --- ESCENARIO B: PANTALLA DE CONFIRMACIÓN CRÍTICA ---
+        else:
             st.markdown(f"""
                 <div class="aviso-seguridad-box">
                     <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD CRÍTICO ⚠️</p>
-                    <h2 style="color: #000000; font-size: 34px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar cambios efectuados?</h2>
+                    <h2 style="color: #000000; font-size: 34px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
                     <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
-                        Has editado o añadido datos en la tabla '{tabla_maestra}'.<br>Por favor, confirma para impactar la Base de Datos o revierte los cambios para limpiar la tabla.
+                        Has detectado una modificación o eliminación de registros existentes en la tabla '{tabla_maestra}'.<br>El sistema mantendrá bloqueada la edición hasta que decidas:
                     </p>
                 </div>
             """, unsafe_allow_html=True)
             
             col_si, col_no = st.columns(2)
+            datos_nuevos = st.session_state.df_congelado_cambios
             
             with col_si:
                 if st.button("🟢 SÍ, CONFIRMAR Y APLICAR CAMBIOS", use_container_width=True):
@@ -296,20 +303,19 @@ if st.session_state.get('usuario_rol') == 1:
                         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
                         cur.execute(f"DELETE FROM {nombre_tabla_db}") 
                         
-                        cols = ", ".join([f"`{c}`" for c in df_editado.columns])
-                        placeholders = ", ".join(["%s"] * len(df_editado.columns))
+                        cols = ", ".join([f"`{c}`" for c in datos_nuevos.columns])
+                        placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
                         sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
                         
-                        for _, row in df_editado.iterrows():
+                        for _, row in datos_nuevos.iterrows():
                             valores = tuple(None if pd.isna(v) else v for v in row)
                             cur.execute(sql_insert, valores)
                         
                         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                         db_critica.commit()
                         
-                        # Consolidamos el nuevo estado oficial de los datos
-                        st.session_state.tabla_actual = df_editado.copy()
-                        st.session_state.backup_data = df_editado.copy()
+                        st.session_state.tabla_actual = datos_nuevos.copy()
+                        st.session_state.backup_data = datos_nuevos.copy()
                         st.session_state.guardado_exitoso = True
                     except Exception as err:
                         db_critica.rollback()
@@ -323,7 +329,7 @@ if st.session_state.get('usuario_rol') == 1:
                     
             with col_no:
                 if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    # Volvemos a inyectar la copia de seguridad guardada originalmente en el estado
+                    # Forzamos la restauración desde el backup inmutable original
                     st.session_state.tabla_actual = st.session_state.backup_data.copy()
                     st.session_state.cambios_revertidos = True
                     st.session_state.bloqueo_advertencia = False
