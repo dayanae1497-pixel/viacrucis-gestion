@@ -222,7 +222,7 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- TAB 3: DATA (EDICIÓN CRÍTICA CON VENTANA EMERGENTE REAL) ---
+# --- TAB 3: DATA (VERSIÓN DE ALTA COMPATIBILIDAD SIN ST.DIALOG) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -236,32 +236,62 @@ if st.session_state.get('usuario_rol') == 1:
         mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # INICIALIZACIÓN DEL BUFFER DE RESPALDO EN MEMORIA
+        # INICIALIZACIÓN DEL BUFFER DE SEGURIDAD EN MEMORIA
         if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
             st.session_state.tabla_actual = df_original.copy()
-            st.session_state.backup_data = df_original.copy() # Respaldo estático e inmutable
+            st.session_state.backup_data = df_original.copy()  # Respaldo estático e inmutable
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
+            st.session_state.bloqueo_advertencia = False       # Estado de control de pantalla
 
-        # --- DEFINICIÓN DE LA VENTANA EMERGENTE (MODAL) ---
-        @st.dialog("⚠️ AVISO DE SEGURIDAD ⚠️", clear_on_submit=True)
-        def mostrar_modal_confirmacion(datos_nuevos):
+        # ALERTAS DE RETROALIMENTACIÓN POST-RECARGA
+        if st.session_state.get("guardado_exitoso"):
+            st.success("🎉 ¡Información sincronizada en la Base de Datos!")
+            del st.session_state["guardado_exitoso"]
+        
+        if st.session_state.get("cambios_revertidos"):
+            st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
+            del st.session_state["cambios_revertidos"]
+
+        # --- ESCENARIO A: FLUJO NORMAL DE EDICIÓN ---
+        if not st.session_state.bloqueo_advertencia:
+            df_editado = st.data_editor(
+                st.session_state.tabla_actual, 
+                num_rows="dynamic", 
+                use_container_width=True, 
+                hide_index=True, 
+                key="editor_maestro_final"
+            )
+
+            # CONTROL DE DETECCIÓN LÓGICA DE MODIFICACIONES
+            cambios = st.session_state.editor_maestro_final
+            hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or len(cambios.get("added_rows", {})) > 0 or len(cambios.get("deleted_rows", {})) > 0
+
+            # Si el usuario modifica algo, congelamos sus cambios y activamos el aviso
+            if hubo_cambios:
+                st.session_state.df_congelado_cambios = df_editado.copy()
+                st.session_state.bloqueo_advertencia = True
+                st.rerun()
+
+        # --- ESCENARIO B: PANTALLA DE CONFIRMACIÓN CRÍTICA ---
+        else:
             st.markdown(f"""
-                <div style="text-align: center; font-family: 'League Spartan', sans-serif;">
-                    <h2 style="color: #000000; font-size: 30px; font-weight: 800; margin-bottom: 10px;">¿Confirmar cambios?</h2>
-                    <p style="color: #2f3542; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
-                        Has editado datos sensibles en la tabla '{tabla_maestra}'.<br>¿Deseas aplicar los cambios o revertir la información por completo?
+                <div class="aviso-seguridad-box">
+                    <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD CRÍTICO ⚠️</p>
+                    <h2 style="color: #000000; font-size: 34px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar cambios definitivos?</h2>
+                    <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
+                        Has editado datos sensibles en la tabla '{tabla_maestra}'.<br>El sistema mantendrá bloqueada la edición hasta que decidas:
                     </p>
                 </div>
             """, unsafe_allow_html=True)
             
             col_si, col_no = st.columns(2)
+            datos_nuevos = st.session_state.df_congelado_cambios
             
             with col_si:
-                if st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True):
-                    # Volvemos a conectar ya que la conexión externa pudo cerrarse
-                    db_modal = conectar()
-                    cur = db_modal.cursor()
+                if st.button("🟢 SÍ, CONFIRMAR Y APLICAR CAMBIOS", use_container_width=True):
+                    db_critica = conectar()
+                    cur = db_critica.cursor()
                     try:
                         cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
                         cur.execute(f"DELETE FROM {nombre_tabla_db}") 
@@ -275,57 +305,30 @@ if st.session_state.get('usuario_rol') == 1:
                             cur.execute(sql_insert, valores)
                         
                         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                        db_modal.commit()
+                        db_critica.commit()
                         
-                        # Guardamos los estados globales de éxito
+                        # Guardamos los nuevos datos como el estado oficial actual y de respaldo
                         st.session_state.tabla_actual = datos_nuevos.copy()
                         st.session_state.backup_data = datos_nuevos.copy()
                         st.session_state.guardado_exitoso = True
-                        
                     except Exception as err:
-                        db_modal.rollback()
+                        db_critica.rollback()
                         st.error(f"Error crítico al guardar: {err}")
                     finally:
                         cur.close()
-                        db_modal.close()
+                        db_critica.close()
+                    
+                    # Rompemos el bloqueo y recargamos
+                    st.session_state.bloqueo_advertencia = False
                     st.rerun()
                     
             with col_no:
                 if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    # Restauramos el dataframe original directo al estado de la sesión
+                    # Forzamos la restauración del DataFrame original desde el backup inmutable
                     st.session_state.tabla_actual = st.session_state.backup_data.copy()
                     st.session_state.cambios_revertidos = True
+                    st.session_state.bloqueo_advertencia = False
                     st.rerun()
-
-        try:
-            # Mensajes de feedback que se muestran tras la recarga (afuera del modal)
-            if st.session_state.get("guardado_exitoso"):
-                st.success("🎉 ¡Información sincronizada en la Base de Datos!")
-                del st.session_state["guardado_exitoso"]
-            
-            if st.session_state.get("cambios_revertidos"):
-                st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
-                del st.session_state["cambios_revertidos"]
-
-            # Mostramos la tabla editable usando el buffer dinámico de sesión
-            df_editado = st.data_editor(
-                st.session_state.tabla_actual, 
-                num_rows="dynamic", 
-                use_container_width=True, 
-                hide_index=True, 
-                key="editor_maestro_final"
-            )
-
-            # CONTROL DE DETECCIÓN LÓGICA DE MODIFICACIONES
-            cambios = st.session_state.editor_maestro_final
-            hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or len(cambios.get("added_rows", {})) > 0 or len(cambios.get("deleted_rows", {})) > 0
-
-            # Si hay cambios detectados en la interfaz del editor, se dispara automáticamente el Modal
-            if hubo_cambios:
-                mostrar_modal_confirmacion(df_editado)
-
-        except Exception as e:
-            st.error(f"Error al procesar el panel: {e}")
 
 # CIERRE AUTOMÁTICO DE CONEXIONES
 if db.is_connected():
