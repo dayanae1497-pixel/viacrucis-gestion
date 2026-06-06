@@ -222,18 +222,7 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- TAB 2: INVENTARIO ---
-with tabs[2]:
-    cv, cu = st.columns(2)
-    with cv:
-        st.subheader("👕 Vestuario")
-        query_v = "SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia` FROM vestuario_final v JOIN parroquia pa ON v.id_parroquia = pa.id_parroquia"
-        st.dataframe(pd.read_sql(query_v, db), hide_index=True)
-    with cu:
-        st.subheader("🛠️ Utilería")
-        st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
-
-# --- TAB 3: DATA (EDICIÓN CRÍTICA CON RESPALDO/ROLLBACK REAL) ---
+# --- TAB 3: DATA (EDICIÓN CRÍTICA CON VENTANA EMERGENTE REAL) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -254,7 +243,70 @@ if st.session_state.get('usuario_rol') == 1:
             st.session_state.backup_data = df_original.copy() # Respaldo estático e inmutable
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
 
+        # --- DEFINICIÓN DE LA VENTANA EMERGENTE (MODAL) ---
+        @st.dialog("⚠️ AVISO DE SEGURIDAD ⚠️", clear_on_submit=True)
+        def mostrar_modal_confirmacion(datos_nuevos):
+            st.markdown(f"""
+                <div style="text-align: center; font-family: 'League Spartan', sans-serif;">
+                    <h2 style="color: #000000; font-size: 30px; font-weight: 800; margin-bottom: 10px;">¿Confirmar cambios?</h2>
+                    <p style="color: #2f3542; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
+                        Has editado datos sensibles en la tabla '{tabla_maestra}'.<br>¿Deseas aplicar los cambios o revertir la información por completo?
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            col_si, col_no = st.columns(2)
+            
+            with col_si:
+                if st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True):
+                    # Volvemos a conectar ya que la conexión externa pudo cerrarse
+                    db_modal = conectar()
+                    cur = db_modal.cursor()
+                    try:
+                        cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                        cur.execute(f"DELETE FROM {nombre_tabla_db}") 
+                        
+                        cols = ", ".join([f"`{c}`" for c in datos_nuevos.columns])
+                        placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
+                        sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
+                        
+                        for _, row in datos_nuevos.iterrows():
+                            valores = tuple(None if pd.isna(v) else v for v in row)
+                            cur.execute(sql_insert, valores)
+                        
+                        cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                        db_modal.commit()
+                        
+                        # Guardamos los estados globales de éxito
+                        st.session_state.tabla_actual = datos_nuevos.copy()
+                        st.session_state.backup_data = datos_nuevos.copy()
+                        st.session_state.guardado_exitoso = True
+                        
+                    except Exception as err:
+                        db_modal.rollback()
+                        st.error(f"Error crítico al guardar: {err}")
+                    finally:
+                        cur.close()
+                        db_modal.close()
+                    st.rerun()
+                    
+            with col_no:
+                if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
+                    # Restauramos el dataframe original directo al estado de la sesión
+                    st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                    st.session_state.cambios_revertidos = True
+                    st.rerun()
+
         try:
+            # Mensajes de feedback que se muestran tras la recarga (afuera del modal)
+            if st.session_state.get("guardado_exitoso"):
+                st.success("🎉 ¡Información sincronizada en la Base de Datos!")
+                del st.session_state["guardado_exitoso"]
+            
+            if st.session_state.get("cambios_revertidos"):
+                st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
+                del st.session_state["cambios_revertidos"]
+
             # Mostramos la tabla editable usando el buffer dinámico de sesión
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
@@ -268,58 +320,9 @@ if st.session_state.get('usuario_rol') == 1:
             cambios = st.session_state.editor_maestro_final
             hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or len(cambios.get("added_rows", {})) > 0 or len(cambios.get("deleted_rows", {})) > 0
 
-            # EL AVISO SOLO SE ENCIENDE CUANDO EL USUARIO EJECUTA CAMBIOS REALEZ
+            # Si hay cambios detectados en la interfaz del editor, se dispara automáticamente el Modal
             if hubo_cambios:
-                st.markdown(f"""
-                <div class="aviso-seguridad-box">
-                    <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD ⚠️</p>
-                    <h2 style="color: #000000; font-size: 34px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar cambios?</h2>
-                    <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
-                        Has editado datos sensibles en la tabla '{tabla_maestra}'.<br>¿Deseas aplicar los cambios o revertir la información por completo?
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                col_si, col_no = st.columns(2)
-                with col_si:
-                    proceder = st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True)
-                with col_no:
-                    revertir = st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True)
-
-                # BOTÓN CONFIRMAR: Impacta la base de datos MySQL de manera definitiva
-                if proceder:
-                    cur = db.cursor()
-                    try:
-                        cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                        cur.execute(f"DELETE FROM {nombre_tabla_db}") 
-                        
-                        cols = ", ".join([f"`{c}`" for c in df_editado.columns])
-                        placeholders = ", ".join(["%s"] * len(df_editado.columns))
-                        sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
-                        
-                        for _, row in df_editado.iterrows():
-                            valores = tuple(None if pd.isna(v) else v for v in row)
-                            cur.execute(sql_insert, valores)
-                        
-                        cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                        db.commit()
-                        
-                        # Actualizamos el buffer de seguridad con el nuevo estado aprobado
-                        st.session_state.tabla_actual = df_editado.copy()
-                        st.session_state.backup_data = df_editado.copy()
-                        st.success("🎉 ¡Información sincronizada en la Base de Datos!")
-                        st.rerun()
-                    except Exception as err:
-                        db.rollback()
-                        st.error(f"Error crítico al guardar: {err}")
-                    finally:
-                        cur.close()
-                        
-                # BOTÓN REVERTIR: Borra los cambios accidentales del editor y restaura el estado original intacto
-                if revertir:
-                    st.session_state.tabla_actual = st.session_state.backup_data.copy()
-                    st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
-                    st.rerun()
+                mostrar_modal_confirmacion(df_editado)
 
         except Exception as e:
             st.error(f"Error al procesar el panel: {e}")
