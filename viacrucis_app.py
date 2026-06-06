@@ -251,7 +251,7 @@ with tabs[2]:
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
 
-# --- TAB 3: DATA (PANEL DE CONTROL EXCLUSIVO CON BLOQUEO MÁXIMO Y RESPALDO CONEXO) ---
+# --- TAB 3: DATA (EDICIÓN CRÍTICA CON VENTANA EMERGENTE DE DIÁLOGO / MODAL) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -262,41 +262,25 @@ if st.session_state.get('usuario_rol') == 1:
             key="selector_tabla_critica"
         )
         
-        mapping = {
-            "Participantes": "participantes", 
-            "Gastos": "gastos", 
-            "Vestuario": "vestuario_final", 
-            "Patrocinantes": "patrocinantes"
-        }
+        mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # LOGICA DE RESPALDO: Inicialización y limpieza limpia de estados al cambiar de tabla
-        if "nombre_tabla_anterior" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
+        # Inicialización y sincronización de los buffers en memoria
+        if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
             st.session_state.tabla_actual = df_original.copy()
             st.session_state.backup_data = df_original.copy() 
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
-            # Limpiamos estados del editor para que no arrastre basura anterior
-            if "editor_maestro_final" in st.session_state:
-                del st.session_state["editor_maestro_final"]
 
-        # VENTANA EMERGENTE CORREGIDA (MODAL DIALOG)
+        # --- DEFINICIÓN DE LA VENTANA EMERGENTE (POP-UP BLOQUEANTE) ---
         @st.dialog("⚠️ CONTROL DE SEGURIDAD")
         def mostrar_popup_seguridad(datos_nuevos, tabla_nombre_legible, tabla_db_real):
-            
-            col_logo_izq, col_logo_cen, col_logo_der = st.columns([1, 2, 1])
-            with col_logo_cen:
-                try:
-                    st.image("assets/image.png", use_container_width=True)
-                except Exception:
-                    st.caption("ℹ️ Logo del Sistema de Gestión")
-
             st.markdown(f"""
-            <div class="aviso-seguridad-box" style="border-top: 10px solid #e5b82b; text-align: center;">
-                <h2 style="color: #000000; font-size: 26px; font-weight: 900; margin-top: 5px;">¿Confirmar cambios?</h2>
-                <p style="color: #2f3542; font-size: 15px; font-weight: bold; margin-bottom: 20px;">
-                    Has realizado modificaciones o eliminaciones en la tabla '<strong>{tabla_nombre_legible}</strong>'.<br>
-                    ¿Deseas aplicar estos cambios en la Base de Datos o restaurar la información?
+            <div class="aviso-seguridad-box" style="margin-top: 0px; border-top: 10px solid #e5b82b;">
+                <h2 style="color: #000000; font-size: 28px; font-weight: 900; text-align: center; margin-top: 0px;">¿Confirmar cambios?</h2>
+                <p style="color: #2f3542; font-size: 16px; text-align: center; font-weight: bold; margin-bottom: 20px;">
+                    Has detectado modificaciones o eliminaciones en la tabla '<strong>{tabla_nombre_legible}</strong>'.<br>
+                    ¿Deseas aplicar estos cambios en la Base de Datos o revertir las anomalías?
                 </p>
             </div>
             """, unsafe_allow_html=True)
@@ -304,6 +288,7 @@ if st.session_state.get('usuario_rol') == 1:
             col_si, col_no = st.columns(2)
             with col_si:
                 if st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True):
+                    # Abrimos una conexión rápida interna para el commit masivo
                     db_popup = conectar()
                     cur = db_popup.cursor()
                     try:
@@ -321,15 +306,12 @@ if st.session_state.get('usuario_rol') == 1:
                         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                         db_popup.commit()
                         
-                        # Actualizamos el estado actual y el backup inmutable con el nuevo éxito
+                        # Actualizamos los estados globales al tener éxito
                         st.session_state.tabla_actual = datos_nuevos.copy()
                         st.session_state.backup_data = datos_nuevos.copy()
+                        st.toast("🎉 ¡Cambios guardados con éxito!", icon="✅")
                         
-                        # RESET CRÍTICO: Forzamos la limpieza del componente editor
-                        if "editor_maestro_final" in st.session_state:
-                            del st.session_state["editor_maestro_final"]
-                            
-                        st.toast("🎉 ¡Base de datos sincronizada con éxito!", icon="✅")
+                        # Cerrar la ventana y recargar la UI limpia
                         st.rerun()
                     except Exception as err:
                         db_popup.rollback()
@@ -340,18 +322,13 @@ if st.session_state.get('usuario_rol') == 1:
                         
             with col_no:
                 if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    # DESCARTE SEGURO: Sobreescribimos el estado volátil usando el respaldo intacto
+                    # Restauramos el clon inmutable del backup y limpiamos cambios del editor
                     st.session_state.tabla_actual = st.session_state.backup_data.copy()
-                    
-                    # RESET CRÍTICO: Eliminamos el estado del editor para borrar los buffers de modificación
-                    if "editor_maestro_final" in st.session_state:
-                        del st.session_state["editor_maestro_final"]
-                        
-                    st.toast("🔄 Cambios revocados de manera segura.", icon="↩️")
+                    st.toast("🔄 Cambios revocados con éxito.", icon="↩️")
                     st.rerun()
 
         try:
-            # Editor masivo interactivo que lee el estado actual de la sesión
+            # Desplegamos el editor interactivo en la pestaña
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic", 
@@ -360,19 +337,13 @@ if st.session_state.get('usuario_rol') == 1:
                 key="editor_maestro_final"
             )
 
-            # Validamos si existen registros modificados, añadidos o borrados en el buffer
-            cambios = st.session_state.get("editor_maestro_final", {})
-            hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or \
-                           len(cambios.get("added_rows", {})) > 0 or \
-                           len(cambios.get("deleted_rows", {})) > 0
+            # Escucha inteligente de mutaciones en las filas
+            cambios = st.session_state.editor_maestro_final
+            hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or len(cambios.get("added_rows", {})) > 0 or len(cambios.get("deleted_rows", {})) > 0
 
-            # Colocamos un botón de acción para confirmar. Esto previene bucles infinitos y cierres fantasmas.
+            # Si el usuario hace una alteración, congelamos la pantalla lanzando el pop-up modal
             if hubo_cambios:
-                st.warning("⚠️ Tienes cambios pendientes por aplicar en esta tabla.")
-                if st.button("💾 Procesar y Guardar Cambios", type="primary", use_container_width=True):
-                    mostrar_popup_seguridad(df_editado, tabla_maestra, nombre_tabla_db)
-            else:
-                st.info("💡 Los datos están sincronizados. Puedes editar cualquier celda directamente arriba.")
+                mostrar_popup_seguridad(df_editado, tabla_maestra, nombre_tabla_db)
 
         except Exception as e:
             st.error(f"Error al procesar el panel: {e}")
