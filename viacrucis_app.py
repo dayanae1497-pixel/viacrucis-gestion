@@ -88,30 +88,26 @@ st.markdown("""
         border-bottom: 4px solid #e5b82b !important;
     }
 
-    /* TABLAS: Bloques negros puros con fuentes blancas */
-    div[data-testid="stDataFrame"] div {
-        background-color: #000000 !important;
+    /* ARREGLO DE VISIBILIDAD DE TABLAS: Mantiene el fondo oscuro pero fuerza las fuentes a blanco legible */
+    div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {
         color: #ffffff !important;
     }
-    div[data-testid="stDataFrame"] th {
-        background-color: #0f0b14 !important;
-        color: #e5b82b !important;
-        font-weight: 800 !important;
-    }
-
-    /* CAJA EMERGENTE DE SEGURIDAD */
+    
+    /* CAJA EMERGENTE DE SEGURIDAD CALCADA */
     .aviso-seguridad-box {
         background-color: #ffffff !important;
         color: #000000 !important;
         border-radius: 12px;
         padding: 25px;
-        border-top: 25px solid #e5b82b; /* Cabecera amarilla de tu alerta */
+        border-top: 15px solid #e5b82b; /* Barra superior amarilla */
         box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
+        margin-top: 20px;
+        margin-bottom: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# ENCABEZADO DEL SISTEMA (Renderizado vía HTML para total seguridad y control tipográfico)
+# ENCABEZADO DEL SISTEMA
 st.markdown("""
     <div class="header-sistema">
         <h1 class="header-titulo">Sistema de gestión<br>de Patrimonio</h1>
@@ -131,7 +127,7 @@ def conectar():
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
-# --- LOGICA DE LOGIN ---
+# --- LÓGICA DE LOGIN ---
 if not st.session_state['autenticado']:
     st.markdown("""
         <div class="banner-acceso">
@@ -257,7 +253,7 @@ with tabs[2]:
         st.subheader("🛠️ Utilería")
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
-# --- TAB 3: DATA (EDICIÓN MASIVA + POP-UP REPLICA EXACTA) ---
+# --- TAB 3: DATA (EDICIÓN MASIVA + LOGICA DE ALERTA CORREGIDA) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -274,56 +270,59 @@ if st.session_state.get('usuario_rol') == 1:
             query = f"SELECT * FROM {nombre_tabla_db}"
             df_maestro = pd.read_sql(query, db)
             
-            # Editor interactivo
-            df_editado = st.data_editor(df_maestro, num_rows="dynamic", use_container_width=True, hide_index=True)
+            # Editor interactivo: Almacenamos los cambios realizados en el componente
+            df_editado = st.data_editor(df_maestro, num_rows="dynamic", use_container_width=True, hide_index=True, key="editor_maestro")
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            # DISEÑO POP-UP DE LA SEGUNDA FOTO EN LUGAR DE ALERTAS DE PYTHON
-            st.markdown(f"""
-            <div class="aviso-seguridad-box">
-                <p style="color: #666; font-weight: bold; font-size: 14px; text-align: center; margin: 0;">⚠️ AVISO DE SEGURIDAD ⚠️</p>
-                <h2 style="color: #000000; font-size: 32px; font-weight: 900; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar cambios?</h2>
-                <p style="color: #333333; font-size: 16px; text-align: center; font-weight: bold; margin-bottom: 20px;">
-                    Has editado datos sensibles en la tabla '{tabla_maestra}'.<br>¿Deseas aplicar los cambios o revertir?
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Pasarela de botones funcionales mapeados directamente debajo de la estructura
-            col_si, col_no = st.columns(2)
-            with col_si:
-                proceder = st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True)
-            with col_no:
-                revertir = st.button("🔴 NO, REVERTIR", use_container_width=True)
+            # --- CONTROL DE ESTADO: DETERMINAR SI HUBO MODIFICACIONES REALES ---
+            cambios = st.session_state.editor_maestro
+            hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or len(cambios.get("added_rows", {})) > 0 or len(cambios.get("deleted_rows", {})) > 0
 
-            if proceder:
-                cur = db.cursor()
-                try:
-                    cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                    cur.execute(f"DELETE FROM {nombre_tabla_db}") 
-                    
-                    cols = ", ".join([f"`{c}`" for c in df_editado.columns])
-                    placeholders = ", ".join(["%s"] * len(df_editado.columns))
-                    sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
-                    
-                    for _, row in df_editado.iterrows():
-                        valores = tuple(None if pd.isna(v) else v for v in row)
-                        cur.execute(sql_insert, valores)
-                    
-                    cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                    db.commit()
-                    st.success("🎉 ¡Cambios guardados con éxito!")
+            # SI HUBO CAMBIOS, ENTONCES Y SOLO ENTONCES SE DESPLIEGA EL POP-UP DE SEGURIDAD
+            if hubo_cambios:
+                st.markdown(f"""
+                <div class="aviso-seguridad-box">
+                    <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD ⚠️</p>
+                    <h2 style="color: #000000; font-size: 34px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar cambios?</h2>
+                    <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
+                        Has editado datos sensibles en la tabla '{tabla_maestra}'.<br>¿Deseas aplicar los cambios o revertir?
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Pasarela de botones funcionales de confirmación
+                col_si, col_no = st.columns(2)
+                with col_si:
+                    proceder = st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True)
+                with col_no:
+                    revertir = st.button("🔴 NO, REVERTIR", use_container_width=True)
+
+                if proceder:
+                    cur = db.cursor()
+                    try:
+                        cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                        cur.execute(f"DELETE FROM {nombre_tabla_db}") 
+                        
+                        cols = ", ".join([f"`{c}`" for c in df_editado.columns])
+                        placeholders = ", ".join(["%s"] * len(df_editado.columns))
+                        sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
+                        
+                        for _, row in df_editado.iterrows():
+                            valores = tuple(None if pd.isna(v) else v for v in row)
+                            cur.execute(sql_insert, valores)
+                        
+                        cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                        db.commit()
+                        st.success("🎉 ¡Cambios guardados con éxito!")
+                        st.rerun()
+                    except Exception as err:
+                        db.rollback()
+                        st.error(f"Error al guardar: {err}")
+                    finally:
+                        cur.close()
+                        
+                if revertir:
+                    st.info("Acción cancelada de forma segura.")
                     st.rerun()
-                except Exception as err:
-                    db.rollback()
-                    st.error(f"Error al guardar: {err}")
-                finally:
-                    cur.close()
-                    
-            if revertir:
-                st.info("Acción cancelada.")
-                st.rerun()
 
         except Exception as e:
             st.error(f"Error al procesar el panel: {e}")
