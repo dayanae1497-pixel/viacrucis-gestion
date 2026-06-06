@@ -222,7 +222,7 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- TAB 3: DATA (VERSIÓN DE ALTA COMPATIBILIDAD SIN ST.DIALOG) ---
+# --- TAB 3: DATA (VERSIÓN CORREGIDA SIN ERRORES DE ATRIBUTO) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -242,7 +242,7 @@ if st.session_state.get('usuario_rol') == 1:
             st.session_state.tabla_actual = df_original.copy()
             st.session_state.backup_data = df_original.copy()  # Respaldo estático e inmutable
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
-            st.session_state.bloqueo_advertencia = False       # Estado de control de pantalla
+            st.session_state.bloqueo_advertencia = False       # Forzamos inicialización inicial
 
         # ALERTAS DE RETROALIMENTACIÓN POST-RECARGA
         if st.session_state.get("guardado_exitoso"):
@@ -253,8 +253,8 @@ if st.session_state.get('usuario_rol') == 1:
             st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
             del st.session_state["cambios_revertidos"]
 
-        # --- ESCENARIO A: FLUJO NORMAL DE EDICIÓN ---
-        if not st.session_state.bloqueo_advertencia:
+        # --- ESCENARIO A: FLUJO NORMAL DE EDICIÓN (USO SEGURO DE .GET) ---
+        if not st.session_state.get("bloqueo_advertencia", False):
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic", 
@@ -307,7 +307,6 @@ if st.session_state.get('usuario_rol') == 1:
                         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                         db_critica.commit()
                         
-                        # Guardamos los nuevos datos como el estado oficial actual y de respaldo
                         st.session_state.tabla_actual = datos_nuevos.copy()
                         st.session_state.backup_data = datos_nuevos.copy()
                         st.session_state.guardado_exitoso = True
@@ -318,13 +317,12 @@ if st.session_state.get('usuario_rol') == 1:
                         cur.close()
                         db_critica.close()
                     
-                    # Rompemos el bloqueo y recargamos
                     st.session_state.bloqueo_advertencia = False
                     st.rerun()
                     
             with col_no:
                 if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    # Forzamos la restauración del DataFrame original desde el backup inmutable
+                    # Forzamos la restauración desde el backup inmutable
                     st.session_state.tabla_actual = st.session_state.backup_data.copy()
                     st.session_state.cambios_revertidos = True
                     st.session_state.bloqueo_advertencia = False
