@@ -222,7 +222,7 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
-# --- TAB 3: DATA (BLOQUEO SELECTIVO Y RESTAURACIÓN INMEDIATA SIN ERRORES) ---
+# --- TAB 3: DATA (VERSIÓN DEFINITIVA CORREGIDA POST-CONFIRMACIÓN) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -236,14 +236,14 @@ if st.session_state.get('usuario_rol') == 1:
         mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # 1. INICIALIZACIÓN BLINDADA (EVITA EL ATTRIBUTEERROR)
+        # 1. INICIALIZACIÓN BLINDADA DE VARIABLES
         if "editor_version" not in st.session_state:
             st.session_state.editor_version = 0
 
         if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
             st.session_state.tabla_actual = df_original.copy()
-            st.session_state.backup_data = df_original.copy()  # Copia inmutable de respaldo
+            st.session_state.backup_data = df_original.copy()
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
             st.session_state.bloqueo_advertencia = False
 
@@ -258,7 +258,6 @@ if st.session_state.get('usuario_rol') == 1:
 
         # --- ESCENARIO A: FLUJO DE TRABAJO (SÓLO TABLA VISIBLE) ---
         if not st.session_state.get("bloqueo_advertencia", False):
-            # Key dinámica 100% segura usando el entero ya inicializado
             version_actual = st.session_state.editor_version
             key_dinamica = f"editor_{nombre_tabla_db}_{version_actual}"
             
@@ -276,7 +275,7 @@ if st.session_state.get('usuario_rol') == 1:
             hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
             hubo_adicion = len(cambios.get("added_rows", [])) > 0
 
-            # SI ELIMINA O EDITA DATOS PREEXISTENTES: Guardamos lo que hay y mandamos al Escenario B
+            # SI ELIMINA O EDITA DATOS PREEXISTENTES: Mandamos al Escenario B
             if hubo_eliminacion or hubo_modificacion:
                 st.session_state.df_congelado_cambios = df_editado.copy()
                 st.session_state.bloqueo_advertencia = True
@@ -321,8 +320,13 @@ if st.session_state.get('usuario_rol') == 1:
                             cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                             db_critica.commit()
                             
+                            # --- LA CLAVE DE LA CORRECCIÓN ---
+                            # 1. Guardamos la nueva tabla como el estado oficial y de respaldo
                             st.session_state.tabla_actual = datos_nuevos.copy()
                             st.session_state.backup_data = datos_nuevos.copy()
+                            # 2. Incrementamos la versión para limpiar el rastro de cambios del st.data_editor viejo
+                            st.session_state.editor_version += 1
+                            # 3. Activamos el mensaje de éxito
                             st.session_state.guardado_exitoso = True
                         except Exception as err:
                             db_critica.rollback()
@@ -336,11 +340,8 @@ if st.session_state.get('usuario_rol') == 1:
                     
             with col_no:
                 if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    # 1. Recuperamos los datos limpios guardados en nuestro backup
                     st.session_state.tabla_actual = st.session_state.backup_data.copy()
-                    # 2. Forzamos a Streamlit a destruir el widget viejo cambiando su ID interna
                     st.session_state.editor_version += 1
-                    # 3. Quitamos el bloqueo para volver a pintar la tabla intacta
                     st.session_state.cambios_revertidos = True
                     st.session_state.bloqueo_advertencia = False
                     st.rerun()
