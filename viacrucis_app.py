@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 import mysql.connector
+from fpdf import FPDF 
 from datetime import datetime
 
-# ==============================================================================
-# 1. CONFIGURACIÓN DE LA PÁGINA Y ESTILOS VISUALES (CSS)
-# ==============================================================================
+# CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
+# --- CONTROLADORES DE ESTILO CSS PARA CALCAR TU MAQUETA ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
@@ -16,12 +16,12 @@ st.markdown("""
         font-family: 'League Spartan', sans-serif !important;
     }
 
-    /* Fondo degradado envolvente (Calco de tus maquetas) */
+    /* Fondo degradado púrpura envolvente */
     .stApp {
         background: linear-gradient(180deg, #321354 0%, #1c0933 50%, #0d021a 100%) !important;
     }
 
-    /* ENCABEZADO PRINCIPAL REPLICADO DE TUS MAQUETAS */
+    /* ENCABEZADO: Título en bloque oscuro con tipografía en blanco limpio */
     .header-sistema {
         background-color: #150324;
         border-radius: 8px;
@@ -39,7 +39,7 @@ st.markdown("""
         letter-spacing: -1px;
     }
 
-    /* SECCIÓN DE ACCESO: Franja pincelada */
+    /* SECCIÓN DE ACCESO: Franja pincelADA */
     .banner-acceso {
         background-color: #2b203a;
         padding: 15px;
@@ -56,23 +56,17 @@ st.markdown("""
         margin: 0 !important;
     }
 
-    /* DISEÑO DE ENTRADAS DEL LOGIN (Bordes redondeados como tus imágenes) */
+    /* INPUTS DEL LOGIN */
     .stTextInput > div > div > input {
-        background-color: #79579e !important;
-        color: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #150324 !important;
         font-size: 18px !important;
         font-weight: 700 !important;
         border-radius: 35px !important;
         padding: 14px 25px !important;
-        border: 2px solid #b58c24 !important;
-    }
-    .stTextInput label {
-        color: #ffffff !important;
-        font-size: 20px !important;
-        font-weight: 700 !important;
     }
     
-    /* PESTAÑAS (TABS NAV) */
+    /* PESTAÑAS (TABS) */
     .stTabs [data-baseweb="tab-list"] {
         background-color: #312d38 !important;
         padding: 10px 20px !important;
@@ -88,33 +82,32 @@ st.markdown("""
         border-bottom: 4px solid #e5b82b !important;
     }
 
-    /* TEXTO VISIBLE EN TABLAS: Forzar color blanco sobre el fondo oscuro */
+    /* ARREGLO DE TEXTO INVISIBLE: Corrección para visualización clara de celdas */
     div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {
         color: #ffffff !important;
     }
     
-    /* CAJA INTERNA DEL DIÁLOGO / POP-UP DE SEGURIDAD */
+    /* REPLICA EXACTA DEL AVISO DE SEGURIDAD */
     .aviso-seguridad-box {
         background-color: #ffffff !important;
         color: #000000 !important;
         border-radius: 12px;
-        padding: 20px;
+        padding: 25px;
+        border-top: 15px solid #e5b82b;
         box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
+        margin-top: 20px;
+        margin-bottom: 15px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# ENCABEZADO DEL SISTEMA FIJO EN LA PARTE SUPERIOR
+# ENCABEZADO DEL SISTEMA
 st.markdown("""
     <div class="header-sistema">
         <h1 class="header-titulo">Sistema de gestión<br>de Patrimonio</h1>
     </div>
 """, unsafe_allow_html=True)
 
-
-# ==============================================================================
-# 2. LÓGICA DE CONEXIÓN A LA BASE DE DATOS (INTACTA)
-# ==============================================================================
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
     return mysql.connector.connect(
@@ -125,13 +118,10 @@ def conectar():
         database="viacrucis_2026"
     )
 
-
-# ==============================================================================
-# 3. CONTROL DE SESIÓN Y LOGIN
-# ==============================================================================
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
+# --- LOGIC DE LOGIN ---
 if not st.session_state['autenticado']:
     st.markdown("""
         <div class="banner-acceso">
@@ -162,11 +152,7 @@ if not st.session_state['autenticado']:
                     st.error("❌ Credenciales incorrectas.")
     st.stop()
 
-
-# ==============================================================================
-# 4. INTERFAZ OPERATIVA DEL SISTEMA (MENÚS Y PESTAÑAS)
-# ==============================================================================
-# CORRECCIÓN DE SINTAXIS AQUÍ: Se cerró correctamente la llave del f-string
+# --- INTERFAZ GENERAL ---
 st.sidebar.markdown(f"👤 **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
 if st.sidebar.button("Cerrar Sesión"):
     st.session_state['autenticado'] = False
@@ -178,7 +164,6 @@ if st.session_state['usuario_rol'] == 1:
 
 tabs = st.tabs(nombres_tabs)
 db = conectar()
-
 
 # --- TAB 0: PERSONAL ---
 with tabs[0]:
@@ -207,7 +192,6 @@ with tabs[0]:
 
     st.metric("Total Personas", len(df_f))
     st.dataframe(df_f, use_container_width=True, hide_index=True)
-
 
 # --- TAB 1: ECONOMÍA ---
 with tabs[1]:
@@ -238,7 +222,6 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
-
 # --- TAB 2: INVENTARIO ---
 with tabs[2]:
     cv, cu = st.columns(2)
@@ -250,8 +233,7 @@ with tabs[2]:
         st.subheader("🛠️ Utilería")
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
-
-# --- TAB 3: DATA (PANEL DE CONTROL EXCLUSIVO CON BLOQUEO MÁXIMO Y RESPALDO CONEXO) ---
+# --- TAB 3: DATA (EDICIÓN CRÍTICA CON RESPALDO/ROLLBACK REAL) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -262,84 +244,18 @@ if st.session_state.get('usuario_rol') == 1:
             key="selector_tabla_critica"
         )
         
-        mapping = {
-            "Participantes": "participantes", 
-            "Gastos": "gastos", 
-            "Vestuario": "vestuario_final", 
-            "Patrocinantes": "patrocinantes"
-        }
+        mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # LOGICA DE RESPALDO: Forzamos la carga inicial si la tabla cambia o no existe
-        if "nombre_tabla_anterior" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
+        # INICIALIZACIÓN DEL BUFFER DE RESPALDO EN MEMORIA
+        if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
             st.session_state.tabla_actual = df_original.copy()
-            st.session_state.backup_data = df_original.copy() 
+            st.session_state.backup_data = df_original.copy() # Respaldo estático e inmutable
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
 
-        # VENTANA EMERGENTE DE SEGURIDAD (MODAL DIALOG)
-        @st.dialog("⚠️ CONTROL DE SEGURIDAD")
-        def mostrar_popup_seguridad(datos_nuevos, tabla_nombre_legible, tabla_db_real):
-            
-            col_logo_izq, col_logo_cen, col_logo_der = st.columns([1, 2, 1])
-            with col_logo_cen:
-                try:
-                    st.image("image_d535e2.png", use_container_width=True)
-                except Exception:
-                    st.caption("ℹ️ Logo del Sistema de Gestión")
-
-            st.markdown(f"""
-            <div class="aviso-seguridad-box" style="border-top: 10px solid #e5b82b; text-align: center;">
-                <h2 style="color: #000000; font-size: 26px; font-weight: 900; margin-top: 5px;">¿Confirmar cambios?</h2>
-                <p style="color: #2f3542; font-size: 15px; font-weight: bold; margin-bottom: 20px;">
-                    Has realizado modificaciones o eliminaciones en la tabla '<strong>{tabla_nombre_legible}</strong>'.<br>
-                    ¿Deseas aplicar estos cambios en la Base de Datos o restaurar la información original?
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            col_si, col_no = st.columns(2)
-            with col_si:
-                if st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True):
-                    db_popup = conectar()
-                    cur = db_popup.cursor()
-                    try:
-                        cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                        cur.execute(f"DELETE FROM {tabla_db_real}") 
-                        
-                        cols = ", ".join([f"`{c}`" for c in datos_nuevos.columns])
-                        placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
-                        sql_insert = f"INSERT INTO {tabla_db_real} ({cols}) VALUES ({placeholders})"
-                        
-                        for _, row in datos_nuevos.iterrows():
-                            valores = tuple(None if pd.isna(v) else v for v in row)
-                            cur.execute(sql_insert, valores)
-                        
-                        cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                        db_popup.commit()
-                        
-                        # Guardamos los nuevos datos como el estado actual y el nuevo respaldo seguro
-                        st.session_state.tabla_actual = datos_nuevos.copy()
-                        st.session_state.backup_data = datos_nuevos.copy()
-                        
-                        st.toast("🎉 ¡Base de datos sincronizada con éxito!", icon="✅")
-                        st.rerun()
-                    except Exception as err:
-                        db_popup.rollback()
-                        st.error(f"Error crítico al guardar: {err}")
-                    finally:
-                        cur.close()
-                        db_popup.close()
-                        
-            with col_no:
-                if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    # Forzamos que el estado actual regrese a la copia del backup inmutable
-                    st.session_state.tabla_actual = st.session_state.backup_data.copy()
-                    st.toast("🔄 Cambios revocados. Información original restaurada.", icon="↩️")
-                    st.rerun()
-
         try:
-            # Renderizado continuo de la tabla usando los datos en memoria
+            # Mostramos la tabla editable usando el buffer dinámico de sesión
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic", 
@@ -348,22 +264,66 @@ if st.session_state.get('usuario_rol') == 1:
                 key="editor_maestro_final"
             )
 
-            # Monitoreo en caliente de modificaciones sobre las celdas
-            cambios = st.session_state.get("editor_maestro_final", {})
-            hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or \
-                           len(cambios.get("added_rows", {})) > 0 or \
-                           len(cambios.get("deleted_rows", {})) > 0
+            # CONTROL DE DETECCIÓN LÓGICA DE MODIFICACIONES
+            cambios = st.session_state.editor_maestro_final
+            hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or len(cambios.get("added_rows", {})) > 0 or len(cambios.get("deleted_rows", {})) > 0
 
-            # Sistema de control para disparar el diálogo sin perder de vista los datos
+            # EL AVISO SOLO SE ENCIENDE CUANDO EL USUARIO EJECUTA CAMBIOS REALEZ
             if hubo_cambios:
-                st.warning("⚠️ Detectamos modificaciones en la tabla actual.")
-                if st.button("💾 Revisar y Aplicar Cambios", type="primary", use_container_width=True):
-                    mostrar_popup_seguridad(df_editado, tabla_maestra, nombre_tabla_db)
-            else:
-                st.info("💡 La tabla está al día con la Base de Datos. Haz doble clic en cualquier celda para editar.")
+                st.markdown(f"""
+                <div class="aviso-seguridad-box">
+                    <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD ⚠️</p>
+                    <h2 style="color: #000000; font-size: 34px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar cambios?</h2>
+                    <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
+                        Has editado datos sensibles en la tabla '{tabla_maestra}'.<br>¿Deseas aplicar los cambios o revertir la información por completo?
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                col_si, col_no = st.columns(2)
+                with col_si:
+                    proceder = st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True)
+                with col_no:
+                    revertir = st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True)
+
+                # BOTÓN CONFIRMAR: Impacta la base de datos MySQL de manera definitiva
+                if proceder:
+                    cur = db.cursor()
+                    try:
+                        cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                        cur.execute(f"DELETE FROM {nombre_tabla_db}") 
+                        
+                        cols = ", ".join([f"`{c}`" for c in df_editado.columns])
+                        placeholders = ", ".join(["%s"] * len(df_editado.columns))
+                        sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
+                        
+                        for _, row in df_editado.iterrows():
+                            valores = tuple(None if pd.isna(v) else v for v in row)
+                            cur.execute(sql_insert, valores)
+                        
+                        cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                        db.commit()
+                        
+                        # Actualizamos el buffer de seguridad con el nuevo estado aprobado
+                        st.session_state.tabla_actual = df_editado.copy()
+                        st.session_state.backup_data = df_editado.copy()
+                        st.success("🎉 ¡Información sincronizada en la Base de Datos!")
+                        st.rerun()
+                    except Exception as err:
+                        db.rollback()
+                        st.error(f"Error crítico al guardar: {err}")
+                    finally:
+                        cur.close()
+                        
+                # BOTÓN REVERTIR: Borra los cambios accidentales del editor y restaura el estado original intacto
+                if revertir:
+                    st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                    st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
+                    st.rerun()
 
         except Exception as e:
             st.error(f"Error al procesar el panel: {e}")
-# CIERRE AUTOMÁTICO DE CONEXIONES SEGURO
+
+# CIERRE AUTOMÁTICO DE CONEXIONES
 if db.is_connected():
     db.close()
