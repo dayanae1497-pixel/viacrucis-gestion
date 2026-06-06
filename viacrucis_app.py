@@ -251,7 +251,7 @@ with tabs[2]:
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
 
-# --- TAB 3: DATA (PANEL DE CONTROL EXCLUSIVO CON BLOQUEO MÁXIMO Y RESPALDO) ---
+# --- TAB 3: DATA (PANEL DE CONTROL EXCLUSIVO CON BLOQUEO MÁXIMO Y RESPALDO CONEXO) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -270,18 +270,20 @@ if st.session_state.get('usuario_rol') == 1:
         }
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # LOGICA DE RESPALDO: Sincronización inmutable del buffer original
-        if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
+        # LOGICA DE RESPALDO: Inicialización y limpieza limpia de estados al cambiar de tabla
+        if "nombre_tabla_anterior" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
             st.session_state.tabla_actual = df_original.copy()
             st.session_state.backup_data = df_original.copy() 
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
+            # Limpiamos estados del editor para que no arrastre basura anterior
+            if "editor_maestro_final" in st.session_state:
+                del st.session_state["editor_maestro_final"]
 
-        # FUNCIÓN DE LA VENTANA EMERGENTE (MODAL DIALOG - BLOQUEA TODO EL FONDO)
+        # VENTANA EMERGENTE CORREGIDA (MODAL DIALOG)
         @st.dialog("⚠️ CONTROL DE SEGURIDAD")
         def mostrar_popup_seguridad(datos_nuevos, tabla_nombre_legible, tabla_db_real):
             
-            # Carga limpia y centrada del logo oficial desde GitHub assets/
             col_logo_izq, col_logo_cen, col_logo_der = st.columns([1, 2, 1])
             with col_logo_cen:
                 try:
@@ -319,9 +321,14 @@ if st.session_state.get('usuario_rol') == 1:
                         cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                         db_popup.commit()
                         
-                        # Guardamos con éxito el nuevo estado de datos en el buffer de respaldo
+                        # Actualizamos el estado actual y el backup inmutable con el nuevo éxito
                         st.session_state.tabla_actual = datos_nuevos.copy()
                         st.session_state.backup_data = datos_nuevos.copy()
+                        
+                        # RESET CRÍTICO: Forzamos la limpieza del componente editor
+                        if "editor_maestro_final" in st.session_state:
+                            del st.session_state["editor_maestro_final"]
+                            
                         st.toast("🎉 ¡Base de datos sincronizada con éxito!", icon="✅")
                         st.rerun()
                     except Exception as err:
@@ -333,13 +340,18 @@ if st.session_state.get('usuario_rol') == 1:
                         
             with col_no:
                 if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    # DESCARTE SEGURO: Borramos los datos alterados y restauramos el backup estático
+                    # DESCARTE SEGURO: Sobreescribimos el estado volátil usando el respaldo intacto
                     st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                    
+                    # RESET CRÍTICO: Eliminamos el estado del editor para borrar los buffers de modificación
+                    if "editor_maestro_final" in st.session_state:
+                        del st.session_state["editor_maestro_final"]
+                        
                     st.toast("🔄 Cambios revocados de manera segura.", icon="↩️")
                     st.rerun()
 
         try:
-            # Editor masivo interactivo
+            # Editor masivo interactivo que lee el estado actual de la sesión
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic", 
@@ -348,19 +360,22 @@ if st.session_state.get('usuario_rol') == 1:
                 key="editor_maestro_final"
             )
 
-            # Monitoreo inteligente de cambios en el editor
-            cambios = st.session_state.editor_maestro_final
+            # Validamos si existen registros modificados, añadidos o borrados en el buffer
+            cambios = st.session_state.get("editor_maestro_final", {})
             hubo_cambios = len(cambios.get("edited_rows", {})) > 0 or \
                            len(cambios.get("added_rows", {})) > 0 or \
                            len(cambios.get("deleted_rows", {})) > 0
 
-            # Si el usuario edita, añade o borra filas, salta el pop-up bloqueando el sistema
+            # Colocamos un botón de acción para confirmar. Esto previene bucles infinitos y cierres fantasmas.
             if hubo_cambios:
-                mostrar_popup_seguridad(df_editado, tabla_maestra, nombre_tabla_db)
+                st.warning("⚠️ Tienes cambios pendientes por aplicar en esta tabla.")
+                if st.button("💾 Procesar y Guardar Cambios", type="primary", use_container_width=True):
+                    mostrar_popup_seguridad(df_editado, tabla_maestra, nombre_tabla_db)
+            else:
+                st.info("💡 Los datos están sincronizados. Puedes editar cualquier celda directamente arriba.")
 
         except Exception as e:
             st.error(f"Error al procesar el panel: {e}")
-
 # CIERRE AUTOMÁTICO DE CONEXIONES SEGURO
 if db.is_connected():
     db.close()
