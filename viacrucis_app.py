@@ -4,118 +4,119 @@ import mysql.connector
 from fpdf import FPDF 
 from datetime import datetime
 
-# CONFIGURACIÓN DE PÁGINA (Fondo oscuro general para simular tus capturas)
+# CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
-# --- ESTILOS CSS AVANZADOS: CALCADO DE LAS IMÁGENES ---
+# --- CONTROLADORES DE ESTILO CSS PARA CALCAR TU MAQUETA ---
 st.markdown("""
     <style>
-    /* Importar la fuente exacta de tu diseño */
+    /* Importación de la fuente League Spartan de tus imágenes */
     @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
     
-    /* Configuración de fuentes globales */
-    html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span {
+    html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {
         font-family: 'League Spartan', sans-serif !important;
     }
 
-    /* Fondo de la aplicación basado en el degradado morado/púrpura de tu flyer */
+    /* Fondo degradado púrpura envolvente basado en tu flyer */
     .stApp {
-        background: linear-gradient(180deg, #3d1c73 0%, #200b45 60%, #12032b 100%) !important;
+        background: linear-gradient(180deg, #321354 0%, #1c0933 50%, #0d021a 100%) !important;
     }
-    
-    /* BANNER PRINCIPAL: Combinación exacta del fondo oscuro y textos en blanco */
-    .banner-patrimonio {
-        background-color: #1a053a;
-        padding: 20px;
+
+    /* ENCABEZADO: Título en bloque oscuro con tipografía en blanco limpio */
+    .header-sistema {
+        background-color: #150324;
+        border-radius: 8px;
+        padding: 30px;
         text-align: center;
-        border-bottom: 2px solid #2d1454;
+        margin-bottom: 10px;
+        border-bottom: 4px solid #b58c24;
     }
-    .titulo-patrimonio {
+    .header-titulo {
         color: #ffffff !important;
-        font-weight: 800 !important;
-        font-size: 42px !important;
+        font-size: 45px !important;
+        font-weight: 900 !important;
         line-height: 1.1;
         margin: 0 !important;
         letter-spacing: -1px;
     }
 
-    /* TÍTULO DE ACCESO AL SISTEMA (Letras amarillas grandes sobre franja pincelada oscura) */
-    .acceso-sistema-container {
-        background-color: #2b233c;
+    /* SECCIÓN DE ACCESO: Franja pincelada oscura con letras amarillas intensas */
+    .banner-acceso {
+        background-color: #2b203a;
         padding: 15px;
         text-align: center;
-        margin-top: 10px;
-        margin-bottom: 25px;
-        border-radius: 4px;
-        box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+        border-radius: 6px;
+        margin-top: 15px;
+        margin-bottom: 30px;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
     }
-    .acceso-sistema-texto {
-        color: #e1b12c !important; /* Amarillo exacto de tu flyer */
+    .texto-acceso {
+        color: #e5b82b !important;
+        font-size: 44px !important;
         font-weight: 900 !important;
-        font-size: 48px !important;
         margin: 0 !important;
         letter-spacing: -0.5px;
     }
 
-    /* FORMULARIO DE LOGIN (Cajas blancas redondeadas con texto oscuro) */
-    .stTextInput > label {
-        color: #ffffff !important;
-        font-size: 20px !important;
-        font-weight: 700 !important;
-        margin-bottom: 8px !important;
-    }
+    /* INPUTS DEL LOGIN: Cajas ovaladas blancas con texto interior oscuro */
     .stTextInput > div > div > input {
         background-color: #ffffff !important;
-        color: #12032b !important;
+        color: #150324 !important;
         font-size: 18px !important;
-        border-radius: 30px !important; /* Bordes ovalados como en tu imagen */
-        padding: 12px 25px !important;
-        border: none !important;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.3) !important;
+        font-weight: 700 !important;
+        border-radius: 35px !important;
+        padding: 14px 25px !important;
+        border: 2px solid transparent !important;
     }
-
-    /* MENÚ DE PESTAÑAS (Simula la barra gris con iconos de tu captura) */
+    .stTextInput > div > div > input:focus {
+        border-color: #e5b82b !important;
+    }
+    
+    /* PESTAÑAS (TABS): Menú horizontal gris oscuro con fuentes amarillas */
     .stTabs [data-baseweb="tab-list"] {
-        background-color: #383541 !important; /* Gris oscuro del menú */
-        padding: 8px 15px !important;
-        border-bottom: 1px solid #4f4b5c !important;
+        background-color: #312d38 !important;
+        padding: 10px 20px !important;
+        border-radius: 6px !important;
     }
     .stTabs [data-baseweb="tab"] {
-        color: #e1b12c !important; /* Texto amarillo */
+        color: #e5b82b !important;
         font-weight: 800 !important;
-        font-size: 18px !important;
-        padding: 10px 20px !important;
+        font-size: 19px !important;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #251442 !important;
-        border-radius: 4px !important;
-        border-bottom: 3px solid #e1b12c !important;
+        background-color: #1c0933 !important;
+        border-bottom: 4px solid #e5b82b !important;
     }
 
-    /* TABLAS DE DATOS (Fondo completamente negro con letras blancas como tu segunda foto) */
+    /* TABLAS: Bloques negros puros con fuentes blancas */
     div[data-testid="stDataFrame"] div {
         background-color: #000000 !important;
         color: #ffffff !important;
     }
     div[data-testid="stDataFrame"] th {
-        background-color: #111111 !important;
-        color: #e1b12c !important; /* Encabezados resaltados */
-        font-weight: 700 !important;
+        background-color: #0f0b14 !important;
+        color: #e5b82b !important;
+        font-weight: 800 !important;
+    }
+
+    /* CAJA EMERGENTE DE SEGURIDAD */
+    .aviso-seguridad-box {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-radius: 12px;
+        padding: 25px;
+        border-top: 25px solid #e5b82b; /* Cabecera amarilla de tu alerta */
+        box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# LOGO SUPERIOR CENTRAL (Cargado dinámicamente desde el archivo que subiste)
-col_logo, col_tit = st.columns([1, 3])
-with col_logo:
-    # Mostramos el escudo oficial del Viacrucis Viviente
-    st.image("image_d535e2.png", width=180)
-with col_tit:
-    st.markdown("""
-        <div class="banner-patrimonio">
-            <h1 class="titulo-patrimonio">Sistema de gestión<br>de Patrimonio</h1>
-        </div>
-    """, unsafe_allow_html=True)
+# ENCABEZADO DEL SISTEMA (Renderizado vía HTML para total seguridad y control tipográfico)
+st.markdown("""
+    <div class="header-sistema">
+        <h1 class="header-titulo">Sistema de gestión<br>de Patrimonio</h1>
+    </div>
+""", unsafe_allow_html=True)
 
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
@@ -130,11 +131,11 @@ def conectar():
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
-# --- PANTALLA DE ACCESO (LOGIN) ---
+# --- LOGICA DE LOGIN ---
 if not st.session_state['autenticado']:
     st.markdown("""
-        <div class="acceso-sistema-container">
-            <h2 class="acceso-sistema-texto">Acceso al sistema 🔒🔑</h2>
+        <div class="banner-acceso">
+            <h2 class="texto-acceso">Acceso al sistema 🔒🔑</h2>
         </div>
     """, unsafe_allow_html=True)
     
@@ -144,8 +145,7 @@ if not st.session_state['autenticado']:
             user_input = st.text_input("Usuario 👤")
             pass_input = st.text_input("Contraseña 🔑", type="password")
             
-            # Botón estilizado tipo Canva
-            if st.form_submit_button("💥 INGRESAR AL SISTEMA"):
+            if st.form_submit_button("💥 INGRESAR"):
                 db = conectar()
                 cursor = db.cursor()
                 query = "SELECT nombre_usuario, id_rol FROM usuarios WHERE nombre_usuario=%s AND clave=%s"
@@ -162,9 +162,9 @@ if not st.session_state['autenticado']:
                     st.error("❌ Credenciales incorrectas.")
     st.stop()
 
-# --- INTERFAZ POST-LOGIN (MENÚ HORIZONTAL) ---
+# --- MENÚ DE NAVEGACIÓN ---
 st.sidebar.markdown(f"👤 **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
-if st.sidebar.button("Cerrar Sesión 🚪"):
+if st.sidebar.button("Cerrar Sesión"):
     st.session_state['autenticado'] = False
     st.rerun()
 
@@ -175,9 +175,9 @@ if st.session_state['usuario_rol'] == 1:
 tabs = st.tabs(nombres_tabs)
 db = conectar()
 
-# --- TAB 0: PERSONAL (VISTA OSCURA) ---
+# --- TAB 0: PERSONAL ---
 with tabs[0]:
-    st.markdown("<h2 style='color:#e1b12c;'>Personal 👥</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#e5b82b;'>Personal 👥</h2>", unsafe_allow_html=True)
     query_p = """
     SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
            r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
@@ -257,10 +257,10 @@ with tabs[2]:
         st.subheader("🛠️ Utilería")
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
-# --- TAB 3: DATA (CON EL AVISO DE CONFIRMACIÓN DE TU SEGUNDA IMAGEN) ---
+# --- TAB 3: DATA (EDICIÓN MASIVA + POP-UP REPLICA EXACTA) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
-        st.markdown("<h2 style='color:#e1b12c;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
         
         tabla_maestra = st.selectbox(
             "Selecciona la tabla a editar:",
@@ -274,27 +274,28 @@ if st.session_state.get('usuario_rol') == 1:
             query = f"SELECT * FROM {nombre_tabla_db}"
             df_maestro = pd.read_sql(query, db)
             
-            # Editor masivo en vivo
+            # Editor interactivo
             df_editado = st.data_editor(df_maestro, num_rows="dynamic", use_container_width=True, hide_index=True)
 
-            # --- IMPLEMENTACIÓN DE TU VENTANA DE AVISO DE SEGURIDAD REQUERIDA ---
             st.markdown("<br>", unsafe_allow_html=True)
             
-            with st.status("⚠️ AVISO DE SEGURIDAD DETECTADO", expanded=True):
-                st.markdown(f"""
-                <div style='text-align:center; padding:10px;'>
-                    <h2 style='color:#000000; margin:0;'>¿Confirmar cambios?</h2>
-                    <p style='color:#333333; font-size:16px;'>Has editado datos sensibles en la tabla <b>'{tabla_maestra}'</b>.<br>¿Deseas aplicar los cambios de manera irreversible en la base de datos o revertir la acción?</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Botones de acción del cuadro de diálogo
-                c_si, c_no = st.columns(2)
-                
-                with c_si:
-                    proceder = st.button("SÍ, CONFIRMAR CAMBIOS ✔️", use_container_width=True, type="primary")
-                with c_no:
-                    revertir = st.button("NO, REVERTIR ❌", use_container_width=True)
+            # DISEÑO POP-UP DE LA SEGUNDA FOTO EN LUGAR DE ALERTAS DE PYTHON
+            st.markdown(f"""
+            <div class="aviso-seguridad-box">
+                <p style="color: #666; font-weight: bold; font-size: 14px; text-align: center; margin: 0;">⚠️ AVISO DE SEGURIDAD ⚠️</p>
+                <h2 style="color: #000000; font-size: 32px; font-weight: 900; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar cambios?</h2>
+                <p style="color: #333333; font-size: 16px; text-align: center; font-weight: bold; margin-bottom: 20px;">
+                    Has editado datos sensibles en la tabla '{tabla_maestra}'.<br>¿Deseas aplicar los cambios o revertir?
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Pasarela de botones funcionales mapeados directamente debajo de la estructura
+            col_si, col_no = st.columns(2)
+            with col_si:
+                proceder = st.button("🟢 SÍ, CONFIRMAR CAMBIOS", use_container_width=True)
+            with col_no:
+                revertir = st.button("🔴 NO, REVERTIR", use_container_width=True)
 
             if proceder:
                 cur = db.cursor()
@@ -316,17 +317,77 @@ if st.session_state.get('usuario_rol') == 1:
                     st.rerun()
                 except Exception as err:
                     db.rollback()
-                    st.error(f"Error crítico al guardar: {err}")
+                    st.error(f"Error al guardar: {err}")
                 finally:
                     cur.close()
                     
             if revertir:
-                st.info("Acción cancelada. Recargando la tabla original...")
+                st.info("Acción cancelada.")
                 st.rerun()
 
         except Exception as e:
             st.error(f"Error al procesar el panel: {e}")
 
-# Cierre automático de conexiones a la base de datos
+        st.divider()
+
+        # --- SECCIÓN 2: GENERACIÓN DE PDF ---
+        st.subheader("📄 Reporte Oficial Viacrucis 2026")
+        
+        def generar_reporte_final(df_p, df_v, df_g, df_pat):
+            class PDF(FPDF):
+                def header(self):
+                    self.set_fill_color(30, 41, 59) 
+                    self.rect(0, 0, 210, 35, 'F')
+                    self.set_text_color(255, 255, 255)
+                    self.set_font('Arial', 'B', 16)
+                    self.cell(0, 10, 'SISTEMA DE GESTIÓN VIACRUCIS 2026', 0, 1, 'C')
+                    self.ln(15)
+
+            pdf = PDF()
+            pdf.add_page()
+            
+            pdf.set_text_color(0)
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(0, 10, 'LISTADO DE PARTICIPANTES', 0, 1)
+            
+            pdf.set_font('Arial', 'B', 9)
+            pdf.set_fill_color(230, 230, 230)
+            pdf.cell(60, 8, 'Nombre Completo', 1, 0, 'C', 1)
+            pdf.cell(40, 8, 'Teléfono', 1, 0, 'C', 1)
+            pdf.cell(90, 8, 'Parroquia', 1, 1, 'C', 1)
+
+            pdf.set_font('Arial', '', 8)
+            for _, row in df_p.iterrows():
+                nombre_completo = f"{row.get('Nombre', '')} {row.get('Apellido', '')}"
+                telefono = str(row.get('teléfono', row.get('teléfono', 'S/N')))
+                parroquia = str(row.get('id_parroquia', 'N/A'))
+
+                pdf.cell(60, 7, nombre_completo[:35], 1)
+                pdf.cell(40, 7, telefono, 1, 0, 'C')
+                pdf.cell(90, 7, parroquia[:50], 1, 1)
+
+            pdf.ln(10)
+            return pdf.output(dest='S')
+
+        if st.button("🚀 Preparar Reporte Maestro"):
+            try:
+                with st.spinner("Compilando toda la información..."):
+                    df_p_raw = pd.read_sql("SELECT * FROM participantes", db)
+                    df_v_raw = pd.read_sql("SELECT * FROM vestuario_final", db)
+                    df_g_raw = pd.read_sql("SELECT * FROM gastos", db)
+                    df_pat_raw = pd.read_sql("SELECT * FROM patrocinantes", db)
+                    
+                    pdf_raw = generar_reporte_final(df_p_raw, df_v_raw, df_g_raw, df_pat_raw)
+                    st.success("✅ ¡Reporte completo generado!")
+                    st.download_button(
+                        label="⬇️ Descargar Reporte PDF",
+                        data=bytes(pdf_raw),
+                        file_name=f"Reporte_Viacrucis_Final_{datetime.now().strftime('%d_%m')}.pdf",
+                        mime="application/pdf"
+                    )
+            except Exception as e:
+                st.error(f"Error al compilar el reporte: {e}")
+
+# CIERRE DE CONEXIÓN
 if db.is_connected():
     db.close()
