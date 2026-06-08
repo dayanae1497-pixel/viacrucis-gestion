@@ -294,9 +294,9 @@ with tabs[2]:
         st.dataframe(pd.read_sql(query_v, db), hide_index=True)
     with cu:
         st.subheader("🛠️ Utilería")
-        st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
+        st.dataframe(pd.read_sql("SELECT objeto, quantity, descripcion FROM utileria", db), hide_index=True)
 
-# --- TAB 3: DATA (PANEL CRÍTICO) ---
+# --- TAB 3: DATA (PANEL CRÍTICO REESTRUCTURADO) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -310,6 +310,7 @@ if st.session_state.get('usuario_rol') == 1:
         mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
+        # Carga inicial optimizada al cambiar de tabla
         if "nombre_tabla_anterior" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = cargar_tabla_optimizado(nombre_tabla_db)
             st.session_state.tabla_actual = df_original.copy()
@@ -318,17 +319,18 @@ if st.session_state.get('usuario_rol') == 1:
             st.session_state.bloqueo_advertencia = False
 
         if st.session_state.get("guardado_exitoso"):
-            st.success("🎉 ¡Información sincronizada en la Base de Datos!")
+            st.success("🎉 ¡Información sincronizada en la Base de Datos con éxito!")
             del st.session_state["guardado_exitoso"]
         
         if st.session_state.get("cambios_revertidos"):
-            st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
+            st.warning("🔄 Operación cancelada. Se restauró el estado seguro anterior.")
             del st.session_state["cambios_revertidos"]
 
-        # ESCENARIO A: Modo edición normal
+        # ESCENARIO A: Modo Libre de Edición (Puedes cambiar y agregar filas completas sin interrupción)
         if not st.session_state.bloqueo_advertencia:
             key_dinamica = f"editor_{nombre_tabla_db}_{st.session_state.editor_version}"
             
+            # El editor ahora te deja escribir renglones completos con calma
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic", 
@@ -337,73 +339,100 @@ if st.session_state.get('usuario_rol') == 1:
                 key=key_dinamica
             )
 
-            cambios = st.session_state.get(key_dinamica, {})
-            if len(cambios.get("deleted_rows", [])) > 0 or len(cambios.get("edited_rows", {})) > 0:
-                st.session_state.df_congelado_cambios = df_editado.copy()
-                st.session_state.bloqueo_advertencia = True
-                st.rerun()
-            elif len(cambios.get("added_rows", [])) > 0:
-                st.session_state.tabla_actual = df_editado.copy()
+            # Detectamos si el usuario hizo cambios en el componente
+            cambios_estado = st.session_state.get(key_dinamica, {})
+            tiene_eliminados = len(cambios_estado.get("deleted_rows", [])) > 0
+            tiene_editados = len(cambios_estado.get("edited_rows", {})) > 0
+            tiene_nuevos = len(cambios_estado.get("added_rows", [])) > 0
 
-        # ESCENARIO B: Pantalla de confirmación tras detectar un cambio estructural
+            # Si hay algún tipo de cambio, mostramos el botón maestro para aplicar todo el bloque
+            if tiene_eliminados or tiene_editados or tiene_nuevos:
+                st.markdown("---")
+                st.info("💡 Tienes modificaciones pendientes en la tabla superior. Haz clic abajo para procesar la línea completa.")
+                
+                if st.button("💾 GUARDAR CAMBIOS Y REVISAR FILAS", use_container_width=True):
+                    st.session_state.df_congelado_cambios = df_editado.copy()
+                    
+                    # SI modificó o borró celdas viejas críticas, forzamos la pantalla de advertencia
+                    if tiene_eliminados or tiene_editados:
+                        st.session_state.bloqueo_advertencia = True
+                        st.rerun()
+                    else:
+                        # Si SOLO agregó filas nuevas completas, procedemos directo sin asustar al usuario
+                        st.session_state.bloqueo_advertencia = "guardado_directo"
+                        st.rerun()
+
+        # ESCENARIO B: Pantallas de Confirmación Final (Evita interrupciones en caliente)
         else:
-            st.markdown(f"""
-                <div class="aviso-seguridad-box">
-                    <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD CRÍTICO ⚠️</p>
-                    <h2 style="color: #000000; font-size: 32px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
-                    <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
-                        Has editado o eliminado registros existentes en la tabla '{tabla_maestra}'.<br>El sistema mantendrá bloqueada la pantalla hasta que decidas:
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            col_si, col_no = st.columns(2)
             datos_nuevos = st.session_state.get("df_congelado_cambios")
             
-            with col_si:
-                if st.button("🟢 SÍ, CONFIRMAR Y APLICAR CAMBIOS", use_container_width=True):
-                    if datos_nuevos is not None:
-                        db_critica = conectar()
-                        cur = db_critica.cursor()
-                        try:
-                            cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                            cur.execute(f"DELETE FROM {nombre_tabla_db}") 
-                            
-                            cols = ", ".join([f"`{c}`" for c in datos_nuevos.columns])
-                            placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
-                            sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
-                            
-                            valores_masivos = [
-                                tuple(None if pd.isna(v) else v for v in row) 
-                                for _, row in datos_nuevos.iterrows()
-                            ]
-                            cur.executemany(sql_insert, valores_masivos)
-                            
-                            cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                            db_critica.commit()
-                            
-                            st.cache_data.clear()
-                            st.session_state.tabla_actual = datos_nuevos.copy()
-                            st.session_state.backup_data = datos_nuevos.copy()
-                            st.session_state.editor_version += 1
-                            st.session_state.guardado_exitoso = True
-                        except Exception as err:
-                            db_critica.rollback()
-                            st.error(f"Error crítico al guardar: {err}")
-                        finally:
-                            cur.close()
-                            db_critica.close()
+            # Sub-escenario 1: El usuario modificó o borró datos antiguos (Aviso de peligro)
+            if st.session_state.bloqueo_advertencia == True:
+                st.markdown(f"""
+                    <div class="aviso-seguridad-box">
+                        <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD CRÍTICO ⚠️</p>
+                        <h2 style="color: #000000; font-size: 32px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración estructural de datos?</h2>
+                        <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
+                            Has editado o eliminado registros existentes en la tabla '{tabla_maestra}'.<br>El sistema requiere confirmación explícita para sobreescribir la base de datos:
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                col_si, col_no = st.columns(2)
+                
+                with col_si:
+                    if st.button("🟢 SÍ, APLICAR Y ACTUALIZAR BASE DE DATOS", use_container_width=True):
+                        ejecutar_guardado = True
+                    else:
+                        ejecutar_guardado = False
+                        
+                with col_no:
+                    if st.button("🔴 NO, CANCELAR Y REVERTIR", use_container_width=True):
+                        st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                        st.session_state.editor_version += 1
+                        st.session_state.cambios_revertidos = True
+                        st.session_state.bloqueo_advertencia = False
+                        st.rerun()
+            
+            # Sub-escenario 2: Solo se añadieron registros nuevos (Guardado directo)
+            else:
+                ejecutar_guardado = True
+
+            # Ejecución del volcado masivo a MySQL (Soporta líneas completas nuevas)
+            if ejecutar_guardado and datos_nuevos is not None:
+                db_critica = conectar()
+                cur = db_critica.cursor()
+                try:
+                    cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                    cur.execute(f"DELETE FROM {nombre_tabla_db}") 
                     
-                    st.session_state.bloqueo_advertencia = False
-                    st.rerun()
+                    cols = ", ".join([f"`{c}`" for c in datos_nuevos.columns])
+                    placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
+                    sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
                     
-            with col_no:
-                if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                    valores_masivos = [
+                        tuple(None if pd.isna(v) else v for v in row) 
+                        for _, row in datos_nuevos.iterrows()
+                    ]
+                    cur.executemany(sql_insert, valores_masivos)
+                    
+                    cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                    db_critica.commit()
+                    
+                    st.cache_data.clear()
+                    st.session_state.tabla_actual = datos_nuevos.copy()
+                    st.session_state.backup_data = datos_nuevos.copy()
                     st.session_state.editor_version += 1
-                    st.session_state.cambios_revertidos = True
-                    st.session_state.bloqueo_advertencia = False
-                    st.rerun()
+                    st.session_state.guardado_exitoso = True
+                except Exception as err:
+                    db_critica.rollback()
+                    st.error(f"Error crítico al guardar la línea de datos: {err}")
+                finally:
+                    cur.close()
+                    db_critica.close()
+            
+                st.session_state.bloqueo_advertencia = False
+                st.rerun()
 
 if db.is_connected():
     db.close()
