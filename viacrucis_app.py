@@ -297,137 +297,260 @@ with tabs[2]:
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
 # --- TAB 3: DATA (PANEL CRÍTICO REESTRUCTURADO) ---
-if st.session_state.get('usuario_rol') == 1:
+if st.session_state['usuario_rol'] == 1:
+
     with tabs[3]:
-        st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
-        
-        tabla_maestra = st.selectbox(
-            "Selecciona la tabla a editar:",
-            ["Participantes", "Gastos", "Vestuario", "Patrocinantes"],
-            key="selector_tabla_critica"
-        )
-        
-        mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
-        nombre_tabla_db = mapping[tabla_maestra]
-        
-        # Intercambio seguro de estados entre tablas
-        if "nombre_tabla_anterior" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
-            df_original = cargar_tabla_optimizado(nombre_tabla_db)
-            st.session_state.tabla_actual = df_original.copy()
-            st.session_state.backup_data = df_original.copy()
-            st.session_state.nombre_tabla_anterior = nombre_tabla_db
-            st.session_state.bloqueo_advertencia = False
 
-        if st.session_state.get("guardado_exitoso"):
-            st.success("🎉 ¡Información sincronizada en la Base de Datos con éxito!")
-            del st.session_state["guardado_exitoso"]
+        st.header("📝 Registro de Datos")
+
+   
+
+        opc = st.radio("¿Qué deseas registrar?", 
+
+                        ["Gasto Nuevo", "Abono de Patrocinante", "Nuevo Patrocinante", "Nuevo Participante", "Nuevo Personaje"], 
+
+                        horizontal=True)
+
         
-        if st.session_state.get("cambios_revertidos"):
-            st.warning("🔄 Operación cancelada. Se restauró el estado seguro original.")
-            del st.session_state["cambios_revertidos"]
 
-        # ESCENARIO A: Modo libre de edición (Rellena renglones completos sin interrupciones)
-        if not st.session_state.bloqueo_advertencia:
-            key_dinamica = f"editor_{nombre_tabla_db}_{st.session_state.editor_version}"
-            
-            df_editado = st.data_editor(
-                st.session_state.tabla_actual, 
-                num_rows="dynamic", 
-                use_container_width=True, 
-                hide_index=True, 
-                key=key_dinamica
-            )
+        if opc == "Gasto Nuevo":
 
-            # Extraemos las modificaciones pendientes en el componente
-            cambios = st.session_state.get(key_dinamica, {})
-            tiene_eliminados = len(cambios.get("deleted_rows", [])) > 0
-            tiene_editados = len(cambios.get("edited_rows", {})) > 0
-            tiene_nuevos = len(cambios.get("added_rows", [])) > 0
+            with st.form("nuevo_gasto"):
 
-            # Si el usuario modificó la estructura, habilitamos el botón maestro de procesado
-            if tiene_eliminados or tiene_editados or tiene_nuevos:
-                st.markdown("---")
-                st.info("💡 Tienes modificaciones en curso en la tabla superior. Cuando termines de estructurar tus filas, presiona el botón de abajo.")
-                
-                if st.button("💾 GUARDAR NUEVA LÍNEA Y PROCESAR CAMBIOS", use_container_width=True):
-                    st.session_state.df_congelado_cambios = df_editado.copy()
-                    
-                    # Si se eliminaron o modificaron datos antiguos, forzamos pantalla de advertencia
-                    if tiene_eliminados or tiene_editados:
-                        st.session_state.bloqueo_advertencia = True
-                    else:
-                        # Si solo agregaste filas completas nuevas, procesamos directo sin asustar
-                        st.session_state.bloqueo_advertencia = "guardado_directo"
+                con = st.text_input("Concepto")
+
+                mon = st.number_input("Monto ($)", min_value=0.0)
+
+                fec = st.date_input("Fecha")
+
+                if st.form_submit_button("Guardar Gasto"):
+
+                    cur = db.cursor()
+
+                    cur.execute("INSERT INTO gastos (concepto, monto, `fecha del gasto`) VALUES (%s, %s, %s)", (con, mon, fec))
+
+                    db.commit()
+
+                    st.success("✅ Gasto guardado con éxito.")
+
                     st.rerun()
 
-        # ESCENARIO B: Flujo Seguro de Confirmación y Volcado de Datos
-        else:
-            datos_nuevos = st.session_state.get("df_congelado_cambios")
-            ejecutar_guardado = False
+        
+
+        elif opc == "Abono de Patrocinante":
+
+           df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
+
+           with st.form("nuevo_abono"):
+
+              p_id = st.selectbox("Negocio", options=df_pats['id_patrocinante'], 
+
+                                  format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
+
+              fecha_pago = st.date_input("Fecha del Abono")
+
+              abo = st.number_input("Monto Abono ($)", min_value=0.0)
+
             
-            # Sub-escenario 1: Advertencia por alteración de celdas antiguas preexistentes
-            if st.session_state.bloqueo_advertencia == True:
-                st.markdown(f"""
-                    <div class="aviso-seguridad-box">
-                        <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD CRÍTICO ⚠️</p>
-                        <h2 style="color: #000000; font-size: 32px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
-                        <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
-                            Has editado o eliminado registros existentes en la tabla '{tabla_maestra}'.<br>El sistema requiere confirmación explícita para sobreescribir la base de datos:
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                col_si, col_no = st.columns(2)
-                with col_si:
-                    if st.button("🟢 SÍ, CONFIRMAR Y APLICAR CAMBIOS", use_container_width=True):
-                        ejecutar_guardado = True
-                with col_no:
-                    if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                        st.session_state.tabla_actual = st.session_state.backup_data.copy()
-                        st.session_state.editor_version += 1
-                        st.session_state.cambios_revertidos = True
-                        st.session_state.bloqueo_advertencia = False
+
+              if st.form_submit_button("Registrar Abono"):
+
+                  try:
+
+                      cur = db.cursor()
+
+                     
+
+                      sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, `fecha de abono`) VALUES (%s, %s, %s)"
+
+                      valores = (int(p_id), float(abo), fecha_pago)
+
+                      cur.execute(sql, valores)
+
+                      db.commit()
+
+                      cur.close()
+
+                      st.success(f"✅ Abono de ${abo} registrado.")
+
+                      st.rerun()
+
+                  except Exception as e:
+
+                      st.error(f"❌ Error: {e}")
+
+
+
+        elif opc == "Nuevo Patrocinante":
+
+            with st.form("form_nuevo_patro"):
+
+                nombre_negocio = st.text_input("Nombre del Negocio o Persona")
+
+                telf = st.text_input("Teléfono de contacto")
+
+                monto_pactado = st.number_input("Monto a Pagar (Pacto en $)", min_value=0.0)
+
+                if st.form_submit_button("Registrar Nuevo Patrocinante"):
+
+                    if nombre_negocio:
+
+                        cur = db.cursor()
+
+                        sql = "INSERT INTO patrocinantes (negocio, teléfono, `monto a pagar`) VALUES (%s, %s, %s)"
+
+                        cur.execute(sql, (nombre_negocio, telf, monto_pactado))
+
+                        db.commit()
+
+                        st.success(f"✅ ¡{nombre_negocio} agregado!")
+
                         st.rerun()
-            
-            # Sub-escenario 2: Sincronización libre directa para filas enteras nuevas
-            else:
-                ejecutar_guardado = True
 
-            # Procesamiento de volcado masivo sobre la base de datos real en MySQL
-            if ejecutar_guardado and datos_nuevos is not None:
-                db_critica = conectar()
-                cur = db_critica.cursor()
-                try:
-                    cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                    cur.execute(f"DELETE FROM {nombre_tabla_db}") 
-                    
-                    cols = ", ".join([f"`{c}`" for c in datos_nuevos.columns])
-                    placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
-                    sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
-                    
-                    valores_masivos = [
-                        tuple(None if pd.isna(v) else v for v in row) 
-                        for _, row in datos_nuevos.iterrows()
-                    ]
-                    cur.executemany(sql_insert, valores_masivos)
-                    
-                    cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                    db_critica.commit()
-                    
-                    st.cache_data.clear()
-                    st.session_state.tabla_actual = datos_nuevos.copy()
-                    st.session_state.backup_data = datos_nuevos.copy()
-                    st.session_state.editor_version += 1
-                    st.session_state.guardado_exitoso = True
-                except Exception as err:
-                    db_critica.rollback()
-                    st.error(f"Error crítico al guardar la línea de datos en MySQL: {err}")
-                finally:
-                    cur.close()
-                    db_critica.close()
-            
-                st.session_state.bloqueo_advertencia = False
-                st.rerun()
+                    else:
 
-if db.is_connected():
+                        st.error("Mano, ponle el nombre al negocio por lo menos.")
+
+
+
+    
+
+        elif opc == "Nuevo Participante":
+
+            df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
+
+            df_par = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
+
+            df_rol = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
+
+
+
+            with st.form("form_nuevo_participante"):
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    nom = st.text_input("Nombre")
+
+                    ape = st.text_input("Apellido")
+
+                    eda = st.number_input("Edad", min_value=0)
+
+                with col2:
+
+                    telf_p = st.text_input("Teléfono")
+
+                    par_id = st.selectbox("Parroquia", options=df_par['id_parroquia'], 
+
+                                         format_func=lambda x: df_par[df_par['id_parroquia']==x]['Nombre Parroquia'].iloc[0])
+
+                    com_id = st.selectbox("Comisión", options=df_com['id_comsion'], 
+
+                                         format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
+
+            
+
+                rol_id = st.selectbox("Rol/Personaje", options=df_rol['id_rol'], 
+
+                                     format_func=lambda x: df_rol[df_rol['id_rol']==x]['Descripción'].iloc[0])
+
+
+
+                if st.form_submit_button("Registrar Participante"):
+
+                    try:
+
+                        cur = db.cursor()
+
+                        sql = """INSERT INTO participantes (Nombre, Apellido, Edad, teléfono, id_comision, id_parroquia, id_rol) 
+
+                                 VALUES (%s, %s, %s, %s, %s, %s, %s)"""
+
+                        cur.execute(sql, (nom, ape, eda, telf_p, com_id, par_id, rol_id))
+
+                        db.commit()
+
+                        cur.close()
+
+                        st.success(f"✅ {nom} {ape} ha sido registrado.")
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        st.error(f"❌ Error en base de datos: {e}")
+
+
+
+    
+
+        elif opc == "Nuevo Personaje":
+
+            try:
+
+            
+
+                df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
+
+                df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
+
+
+
+                st.subheader("🎭 Asignar Papel del Elenco")
+
+            
+
+                with st.form("form_personaje"):
+
+               
+
+                    p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
+
+                                       format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
+
+                  
+
+              
+
+                    nombre_papel = st.text_input("Nombre del Personaje")
+
+
+
+                    if st.form_submit_button("Guardar Personaje"):
+
+                        cur = db.cursor()
+
+                    
+
+                        sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
+
+                        cur.execute(sql, (nombre_papel, int(p_id)))
+
+                        db.commit()
+
+                        cur.close()
+
+                        st.success(f"✅ ¡{nombre_papel} asignado correctamente!")
+
+                        st.rerun()
+
+            except Exception as e:
+
+                st.error(f"⚠️ Hubo un detalle: {e}")
+
+
+
+
+
+if 'db' in locals() and db.is_connected():
+
     db.close()
+
+
+
+
+if 'db' in locals() and db.is_connected():
+
+    db.close()
+
