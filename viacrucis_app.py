@@ -278,3 +278,156 @@ with tabs[1]:
         elif filtro == "Abonos": df_pagos = df_pagos[(df_pagos['Abonado'] > 0) & (df_pagos['Pendiente'] > 0)]
         elif filtro == "Cancelado": df_pagos = df_pagos[df_pagos['Pendiente'] <= 0]
         st.dataframe(df_pagos, use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+# --- TAB 2: INVENTARIO ---
+with tabs[2]:
+    cv, cu = st.columns(2)
+    with cv:
+        st.subheader("👕 Vestuario")
+        query_v = """
+        SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia` 
+        FROM vestuario_final v 
+        JOIN parroquia pa ON v.id_parroquia = pa.id_parroquia
+        """
+        st.dataframe(pd.read_sql(query_v, db), hide_index=True)
+    with cu:
+        st.subheader("🛠️ Utilería")
+        st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
+
+# --- TAB 3: DATA (PANEL CRÍTICO REESTRUCTURADO) ---
+if st.session_state.get('usuario_rol') == 1:
+    with tabs[3]:
+        st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
+        
+        tabla_maestra = st.selectbox(
+            "Selecciona la tabla a editar:",
+            ["Participantes", "Gastos", "Vestuario", "Patrocinantes"],
+            key="selector_tabla_critica"
+        )
+        
+        mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
+        nombre_tabla_db = mapping[tabla_maestra]
+        
+        # Intercambio seguro de estados entre tablas
+        if "nombre_tabla_anterior" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
+            df_original = cargar_tabla_optimizado(nombre_tabla_db)
+            st.session_state.tabla_actual = df_original.copy()
+            st.session_state.backup_data = df_original.copy()
+            st.session_state.nombre_tabla_anterior = nombre_tabla_db
+            st.session_state.bloqueo_advertencia = False
+
+        if st.session_state.get("guardado_exitoso"):
+            st.success("🎉 ¡Información sincronizada en la Base de Datos con éxito!")
+            del st.session_state["guardado_exitoso"]
+        
+        if st.session_state.get("cambios_revertidos"):
+            st.warning("🔄 Operación cancelada. Se restauró el estado seguro original.")
+            del st.session_state["cambios_revertidos"]
+
+        # ESCENARIO A: Modo libre de edición (Rellena renglones completos sin interrupciones)
+        if not st.session_state.bloqueo_advertencia:
+            key_dinamica = f"editor_{nombre_tabla_db}_{st.session_state.editor_version}"
+            
+            df_editado = st.data_editor(
+                st.session_state.tabla_actual, 
+                num_rows="dynamic", 
+                use_container_width=True, 
+                hide_index=True, 
+                key=key_dinamica
+            )
+
+            # Extraemos las modificaciones pendientes en el componente
+            cambios = st.session_state.get(key_dinamica, {})
+            tiene_eliminados = len(cambios.get("deleted_rows", [])) > 0
+            tiene_editados = len(cambios.get("edited_rows", {})) > 0
+            tiene_nuevos = len(cambios.get("added_rows", [])) > 0
+
+            # Si el usuario modificó la estructura, habilitamos el botón maestro de procesado
+            if tiene_eliminados or tiene_editados or tiene_nuevos:
+                st.markdown("---")
+                st.info("💡 Tienes modificaciones en curso en la tabla superior. Cuando termines de estructurar tus filas, presiona el botón de abajo.")
+                
+                if st.button("💾 GUARDAR NUEVA LÍNEA Y PROCESAR CAMBIOS", use_container_width=True):
+                    st.session_state.df_congelado_cambios = df_editado.copy()
+                    
+                    # Si se eliminaron o modificaron datos antiguos, forzamos pantalla de advertencia
+                    if tiene_eliminados or tiene_editados:
+                        st.session_state.bloqueo_advertencia = True
+                    else:
+                        # Si solo agregaste filas completas nuevas, procesamos directo sin asustar
+                        st.session_state.bloqueo_advertencia = "guardado_directo"
+                    st.rerun()
+
+        # ESCENARIO B: Flujo Seguro de Confirmación y Volcado de Datos
+        else:
+            datos_nuevos = st.session_state.get("df_congelado_cambios")
+            ejecutar_guardado = False
+            
+            # Sub-escenario 1: Advertencia por alteración de celdas antiguas preexistentes
+            if st.session_state.bloqueo_advertencia == True:
+                st.markdown(f"""
+                    <div class="aviso-seguridad-box">
+                        <p style="color: #ea2027; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD CRÍTICO ⚠️</p>
+                        <h2 style="color: #000000; font-size: 32px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
+                        <p style="color: #2f3542; font-size: 17px; text-align: center; font-weight: bold; margin-bottom: 20px;">
+                            Has editado o eliminado registros existentes en la tabla '{tabla_maestra}'.<br>El sistema requiere confirmación explícita para sobreescribir la base de datos:
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                col_si, col_no = st.columns(2)
+                with col_si:
+                    if st.button("🟢 SÍ, CONFIRMAR Y APLICAR CAMBIOS", use_container_width=True):
+                        ejecutar_guardado = True
+                with col_no:
+                    if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
+                        st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                        st.session_state.editor_version += 1
+                        st.session_state.cambios_revertidos = True
+                        st.session_state.bloqueo_advertencia = False
+                        st.rerun()
+            
+            # Sub-escenario 2: Sincronización libre directa para filas enteras nuevas
+            else:
+                ejecutar_guardado = True
+
+            # Procesamiento de volcado masivo sobre la base de datos real en MySQL
+            if ejecutar_guardado and datos_nuevos is not None:
+                db_critica = conectar()
+                cur = db_critica.cursor()
+                try:
+                    cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                    cur.execute(f"DELETE FROM {nombre_tabla_db}") 
+                    
+                    cols = ", ".join([f"`{c}`" for c in datos_nuevos.columns])
+                    placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
+                    sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
+                    
+                    valores_masivos = [
+                        tuple(None if pd.isna(v) else v for v in row) 
+                        for _, row in datos_nuevos.iterrows()
+                    ]
+                    cur.executemany(sql_insert, valores_masivos)
+                    
+                    cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                    db_critica.commit()
+                    
+                    st.cache_data.clear()
+                    st.session_state.tabla_actual = datos_nuevos.copy()
+                    st.session_state.backup_data = datos_nuevos.copy()
+                    st.session_state.editor_version += 1
+                    st.session_state.guardado_exitoso = True
+                except Exception as err:
+                    db_critica.rollback()
+                    st.error(f"Error crítico al guardar la línea de datos en MySQL: {err}")
+                finally:
+                    cur.close()
+                    db_critica.close()
+            
+                st.session_state.bloqueo_advertencia = False
+                st.rerun()
+
+if db.is_connected():
+    db.close()
