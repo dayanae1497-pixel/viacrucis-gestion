@@ -6,11 +6,20 @@ from datetime import datetime
 import base64
 import os
 
-# CONFIGURACIÓN DE PÁGINA
+# 1. CONFIGURACIÓN DE PÁGINA (Debe ser lo primero)
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
+# 2. INICIALIZACIÓN SEGURA DE SESIONES (Previene AttributeErrors)
+if 'autenticado' not in st.session_state:
+    st.session_state['autenticado'] = False
+if 'editor_version' not in st.session_state:
+    st.session_state['editor_version'] = 0
+if 'bloqueo_advertencia' not in st.session_state:
+    st.session_state['bloqueo_advertencia'] = False
+if 'tabla_actual' not in st.session_state:
+    st.session_state['tabla_actual'] = None
+
 # --- PROCESAMIENTO DE IMAGEN PARA EL BANNER (BASE64) ---
-# Buscamos la imagen en la raíz o dentro de assets según tus capturas
 ruta_imagen = "image.png"
 if not os.path.exists(ruta_imagen) and os.path.exists("assets/image.png"):
     ruta_imagen = "assets/image.png"
@@ -20,24 +29,19 @@ if os.path.exists(ruta_imagen):
     with open(ruta_imagen, "rb") as image_file:
         img_base64 = base64.b64encode(image_file.read()).decode()
 
-# Si la imagen existe, preparamos el fondo con la imagen integrada de forma elegante
 if img_base64:
-    background_css = f"""
-        background: linear-gradient(rgba(21, 3, 36, 0.75), rgba(21, 3, 36, 0.85)), url(data:image/png;base64,{img_base64});
-        background-size: cover;
-        background-position: center;
-    """
+    background_css = f"background: linear-gradient(rgba(21, 3, 36, 0.75), rgba(21, 3, 36, 0.85)), url(data:image/png;base64,{img_base64}); background-size: cover; background-position: center;"
 else:
     background_css = "background-color: #150324;"
 
-# --- CONTROLADORES DE ESTILO CSS PARA CALCAR TU MAQUETA ---
+# --- CONTROLADORES DE ESTILO CSS CORREGIDOS ---
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
     
-    html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {
+    html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {{
         font-family: 'League Spartan', sans-serif !important;
-    }
+    }}
 
     /* Fondo degradado púrpura envolvente */
     .stApp {{
@@ -64,7 +68,7 @@ st.markdown(f"""
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
     }}
 
-    /* SECCIÓN DE ACCESO: Franja pincelADA */
+    /* SECCIÓN DE ACCESO */
     .banner-acceso {{
         background-color: #2b203a;
         padding: 15px;
@@ -107,7 +111,7 @@ st.markdown(f"""
         border-bottom: 4px solid #e5b82b !important;
     }}
 
-    /* ARREGLO DE TEXTO INVISIBLE: Corrección para visualización clara de celdas */
+    /* Visibilidad de celdas dataframes */
     div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {{
         color: #ffffff !important;
     }}
@@ -143,7 +147,6 @@ def conectar():
         database="viacrucis_2026"
     )
 
-# --- FUNCIÓN CON CACHÉ DE MEMORIA PARA MINIMIZAR TRÁFICO ---
 @st.cache_data(ttl=600)
 def cargar_tabla_optimizado(nombre_tabla):
     conn_cache = conectar()
@@ -153,10 +156,7 @@ def cargar_tabla_optimizado(nombre_tabla):
         conn_cache.close()
     return df
 
-if 'autenticado' not in st.session_state:
-    st.session_state['autenticado'] = False
-
-# --- LOGIC DE LOGIN ---
+# --- CONTROL DE ACCESO ---
 if not st.session_state['autenticado']:
     st.markdown("""
         <div class="banner-acceso">
@@ -187,7 +187,7 @@ if not st.session_state['autenticado']:
                     st.error("❌ Credenciales incorrectas.")
     st.stop()
 
-# --- INTERFAZ GENERAL ---
+# --- INTERFAZ PRINCIPAL ---
 st.sidebar.markdown(f"👤 **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
 if st.sidebar.button("Cerrar Sesión"):
     st.session_state['autenticado'] = False
@@ -272,7 +272,7 @@ with tabs[2]:
         st.subheader("🛠️ Utilería")
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
-# --- TAB 3: DATA ---
+# --- TAB 3: DATA (PANEL CRÍTICO) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -286,10 +286,7 @@ if st.session_state.get('usuario_rol') == 1:
         mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        if "editor_version" not in st.session_state:
-            st.session_state.editor_version = 0
-
-        if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
+        if "nombre_tabla_anterior" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = cargar_tabla_optimizado(nombre_tabla_db)
             st.session_state.tabla_actual = df_original.copy()
             st.session_state.backup_data = df_original.copy()
@@ -304,10 +301,9 @@ if st.session_state.get('usuario_rol') == 1:
             st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
             del st.session_state["cambios_revertidos"]
 
-        # --- ESCENARIO A: FLUJO DE TRABAJO ---
-        if not st.session_state.get("bloqueo_advertencia", False):
-            version_actual = st.session_state.editor_version
-            key_dinamica = f"editor_{nombre_tabla_db}_{version_actual}"
+        # ESCENARIO A: Modo edición normal
+        if not st.session_state.bloqueo_advertencia:
+            key_dinamica = f"editor_{nombre_tabla_db}_{st.session_state.editor_version}"
             
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
@@ -318,18 +314,14 @@ if st.session_state.get('usuario_rol') == 1:
             )
 
             cambios = st.session_state.get(key_dinamica, {})
-            hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
-            hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
-            hubo_adicion = len(cambios.get("added_rows", [])) > 0
-
-            if hubo_eliminacion or hubo_modificacion:
+            if len(cambios.get("deleted_rows", [])) > 0 or len(cambios.get("edited_rows", {})) > 0:
                 st.session_state.df_congelado_cambios = df_editado.copy()
                 st.session_state.bloqueo_advertencia = True
                 st.rerun()
-            elif hubo_adicion:
+            elif len(cambios.get("added_rows", [])) > 0:
                 st.session_state.tabla_actual = df_editado.copy()
 
-        # --- ESCENARIO B: PANTALLA DE CONFIRMACIÓN CRÍTICA ---
+        # ESCENARIO B: Pantalla de confirmación tras detectar un cambio estructural
         else:
             st.markdown(f"""
                 <div class="aviso-seguridad-box">
@@ -367,7 +359,6 @@ if st.session_state.get('usuario_rol') == 1:
                             db_critica.commit()
                             
                             st.cache_data.clear()
-                            
                             st.session_state.tabla_actual = datos_nuevos.copy()
                             st.session_state.backup_data = datos_nuevos.copy()
                             st.session_state.editor_version += 1
@@ -390,6 +381,5 @@ if st.session_state.get('usuario_rol') == 1:
                     st.session_state.bloqueo_advertencia = False
                     st.rerun()
 
-# CIERRE AUTOMÁTICO DE CONEXIONES
 if db.is_connected():
     db.close()
