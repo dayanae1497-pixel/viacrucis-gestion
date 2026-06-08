@@ -3,12 +3,35 @@ import pandas as pd
 import mysql.connector
 from fpdf import FPDF 
 from datetime import datetime
+import base64
+import os
 
 # CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
+# --- PROCESAMIENTO DE IMAGEN PARA EL BANNER (BASE64) ---
+# Buscamos la imagen en la raíz o dentro de assets según tus capturas
+ruta_imagen = "image.png"
+if not os.path.exists(ruta_imagen) and os.path.exists("assets/image.png"):
+    ruta_imagen = "assets/image.png"
+
+img_base64 = ""
+if os.path.exists(ruta_imagen):
+    with open(ruta_imagen, "rb") as image_file:
+        img_base64 = base64.b64encode(image_file.read()).decode()
+
+# Si la imagen existe, preparamos el fondo con la imagen integrada de forma elegante
+if img_base64:
+    background_css = f"""
+        background: linear-gradient(rgba(21, 3, 36, 0.75), rgba(21, 3, 36, 0.85)), url(data:image/png;base64,{img_base64});
+        background-size: cover;
+        background-position: center;
+    """
+else:
+    background_css = "background-color: #150324;"
+
 # --- CONTROLADORES DE ESTILO CSS PARA CALCAR TU MAQUETA ---
-st.markdown("""
+st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
     
@@ -17,30 +40,32 @@ st.markdown("""
     }
 
     /* Fondo degradado púrpura envolvente */
-    .stApp {
+    .stApp {{
         background: linear-gradient(180deg, #321354 0%, #1c0933 50%, #0d021a 100%) !important;
-    }
+    }}
 
-    /* ENCABEZADO: Título en bloque oscuro con tipografía en blanco limpio */
-    .header-sistema {
-        background-color: #150324;
+    /* ENCABEZADO: Bloque con imagen estilizada de fondo */
+    .header-sistema {{
+        {background_css}
         border-radius: 8px;
-        padding: 30px;
+        padding: 45px 30px;
         text-align: center;
         margin-bottom: 10px;
         border-bottom: 4px solid #b58c24;
-    }
-    .header-titulo {
+        box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.4);
+    }}
+    .header-titulo {{
         color: #ffffff !important;
-        font-size: 45px !important;
+        font-size: 48px !important;
         font-weight: 900 !important;
         line-height: 1.1;
         margin: 0 !important;
         letter-spacing: -1px;
-    }
+        text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+    }}
 
     /* SECCIÓN DE ACCESO: Franja pincelADA */
-    .banner-acceso {
+    .banner-acceso {{
         background-color: #2b203a;
         padding: 15px;
         text-align: center;
@@ -48,47 +73,47 @@ st.markdown("""
         margin-top: 15px;
         margin-bottom: 30px;
         box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
-    }
-    .texto-acceso {
+    }}
+    .texto-acceso {{
         color: #e5b82b !important;
         font-size: 44px !important;
         font-weight: 900 !important;
         margin: 0 !important;
-    }
+    }}
 
     /* INPUTS DEL LOGIN */
-    .stTextInput > div > div > input {
+    .stTextInput > div > div > input {{
         background-color: #ffffff !important;
         color: #150324 !important;
         font-size: 18px !important;
         font-weight: 700 !important;
         border-radius: 35px !important;
         padding: 14px 25px !important;
-    }
+    }}
     
     /* PESTAÑAS (TABS) */
-    .stTabs [data-baseweb="tab-list"] {
+    .stTabs [data-baseweb="tab-list"] {{
         background-color: #312d38 !important;
         padding: 10px 20px !important;
         border-radius: 6px !important;
-    }
-    .stTabs [data-baseweb="tab"] {
+    }}
+    .stTabs [data-baseweb="tab"] {{
         color: #e5b82b !important;
         font-weight: 800 !important;
         font-size: 19px !important;
-    }
-    .stTabs [aria-selected="true"] {
+    }}
+    .stTabs [aria-selected="true"] {{
         background-color: #1c0933 !important;
         border-bottom: 4px solid #e5b82b !important;
-    }
+    }}
 
     /* ARREGLO DE TEXTO INVISIBLE: Corrección para visualización clara de celdas */
-    div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {
+    div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {{
         color: #ffffff !important;
-    }
+    }}
     
     /* REPLICA EXACTA DEL AVISO DE SEGURIDAD */
-    .aviso-seguridad-box {
+    .aviso-seguridad-box {{
         background-color: #ffffff !important;
         color: #000000 !important;
         border-radius: 12px;
@@ -97,11 +122,11 @@ st.markdown("""
         box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
         margin-top: 20px;
         margin-bottom: 15px;
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
 
-# ENCABEZADO DEL SISTEMA
+# ENCABEZADO DEL SISTEMA RENDERIZADO
 st.markdown("""
     <div class="header-sistema">
         <h1 class="header-titulo">Sistema de gestión<br>de Patrimonio</h1>
@@ -117,6 +142,16 @@ def conectar():
         port=18358, 
         database="viacrucis_2026"
     )
+
+# --- FUNCIÓN CON CACHÉ DE MEMORIA PARA MINIMIZAR TRÁFICO ---
+@st.cache_data(ttl=600)
+def cargar_tabla_optimizado(nombre_tabla):
+    conn_cache = conectar()
+    try:
+        df = pd.read_sql(f"SELECT * FROM {nombre_tabla}", conn_cache)
+    finally:
+        conn_cache.close()
+    return df
 
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
@@ -222,38 +257,22 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Error: {e}")
 
+# --- TAB 2: INVENTARIO ---
 with tabs[2]:
-
     cv, cu = st.columns(2)
-
     with cv:
-
         st.subheader("👕 Vestuario")
-
-       
-
         query_v = """
-
         SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia` 
-
         FROM vestuario_final v 
-
         JOIN parroquia pa ON v.id_parroquia = pa.id_parroquia
-
         """
-
         st.dataframe(pd.read_sql(query_v, db), hide_index=True)
-
     with cu:
-
         st.subheader("🛠️ Utilería")
-
- 
-
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
-
-# --- TAB 3: DATA (VERSIÓN DEFINITIVA CORREGIDA POST-CONFIRMACIÓN) ---
+# --- TAB 3: DATA ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
@@ -267,18 +286,16 @@ if st.session_state.get('usuario_rol') == 1:
         mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # 1. INICIALIZACIÓN BLINDADA DE VARIABLES
         if "editor_version" not in st.session_state:
             st.session_state.editor_version = 0
 
         if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
-            df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
+            df_original = cargar_tabla_optimizado(nombre_tabla_db)
             st.session_state.tabla_actual = df_original.copy()
             st.session_state.backup_data = df_original.copy()
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
             st.session_state.bloqueo_advertencia = False
 
-        # ALERTAS DE RETROALIMENTACIÓN DE ACCIONES
         if st.session_state.get("guardado_exitoso"):
             st.success("🎉 ¡Información sincronizada en la Base de Datos!")
             del st.session_state["guardado_exitoso"]
@@ -287,7 +304,7 @@ if st.session_state.get('usuario_rol') == 1:
             st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
             del st.session_state["cambios_revertidos"]
 
-        # --- ESCENARIO A: FLUJO DE TRABAJO (SÓLO TABLA VISIBLE) ---
+        # --- ESCENARIO A: FLUJO DE TRABAJO ---
         if not st.session_state.get("bloqueo_advertencia", False):
             version_actual = st.session_state.editor_version
             key_dinamica = f"editor_{nombre_tabla_db}_{version_actual}"
@@ -300,23 +317,19 @@ if st.session_state.get('usuario_rol') == 1:
                 key=key_dinamica
             )
 
-            # INSPECCIÓN DE CAMBIOS REALIZADOS
             cambios = st.session_state.get(key_dinamica, {})
             hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
             hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
             hubo_adicion = len(cambios.get("added_rows", [])) > 0
 
-            # SI ELIMINA O EDITA DATOS PREEXISTENTES: Mandamos al Escenario B
             if hubo_eliminacion or hubo_modificacion:
                 st.session_state.df_congelado_cambios = df_editado.copy()
                 st.session_state.bloqueo_advertencia = True
                 st.rerun()
-                
-            # SI SÓLO ESTÁ AGREGANDO REGISTROS NUEVOS: Guardamos en memoria sin interrumpir la pantalla
             elif hubo_adicion:
                 st.session_state.tabla_actual = df_editado.copy()
 
-        # --- ESCENARIO B: PANTALLA DE CONFIRMACIÓN CRÍTICA (OCULTA LA TABLA PARA CAPTURAR ATENCIÓN) ---
+        # --- ESCENARIO B: PANTALLA DE CONFIRMACIÓN CRÍTICA ---
         else:
             st.markdown(f"""
                 <div class="aviso-seguridad-box">
@@ -344,20 +357,20 @@ if st.session_state.get('usuario_rol') == 1:
                             placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
                             sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
                             
-                            for _, row in datos_nuevos.iterrows():
-                                valores = tuple(None if pd.isna(v) else v for v in row)
-                                cur.execute(sql_insert, valores)
+                            valores_masivos = [
+                                tuple(None if pd.isna(v) else v for v in row) 
+                                for _, row in datos_nuevos.iterrows()
+                            ]
+                            cur.executemany(sql_insert, valores_masivos)
                             
                             cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                             db_critica.commit()
                             
-                            # --- LA CLAVE DE LA CORRECCIÓN ---
-                            # 1. Guardamos la nueva tabla como el estado oficial y de respaldo
+                            st.cache_data.clear()
+                            
                             st.session_state.tabla_actual = datos_nuevos.copy()
                             st.session_state.backup_data = datos_nuevos.copy()
-                            # 2. Incrementamos la versión para limpiar el rastro de cambios del st.data_editor viejo
                             st.session_state.editor_version += 1
-                            # 3. Activamos el mensaje de éxito
                             st.session_state.guardado_exitoso = True
                         except Exception as err:
                             db_critica.rollback()
@@ -376,6 +389,7 @@ if st.session_state.get('usuario_rol') == 1:
                     st.session_state.cambios_revertidos = True
                     st.session_state.bloqueo_advertencia = False
                     st.rerun()
+
 # CIERRE AUTOMÁTICO DE CONEXIONES
 if db.is_connected():
     db.close()
