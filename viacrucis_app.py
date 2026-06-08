@@ -501,35 +501,68 @@ if st.session_state.get('usuario_rol') == 1:
             with col_si:
                 if st.button("🟢 SÍ, CONFIRMAR Y APLICAR CAMBIOS", use_container_width=True):
                     if datos_nuevos is not None:
-                        # Usamos la conexión activa 'db' para hacer la sincronización crítica
                         cur = db.cursor()
                         try:
+                            # 1. Desactivar restricciones temporalmente
                             cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                            cur.execute(f"DELETE FROM {nombre_tabla_db}") 
                             
-                            cols = ", ".join([f"`{c}`" for c in datos_nuevos.columns])
-                            placeholders = ", ".join(["%s"] * len(datos_nuevos.columns))
-                            sql_insert = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders})"
+                            # 2. Identificar la columna ID (suele ser la primera, ej: 'id_participante' o 'id')
+                            columna_id = datos_nuevos.columns[0]
                             
-                            for _, row in datos_nuevos.iterrows():
-                                # Limpiamos valores NaN de Pandas para que MySQL los procese como NULL si es válido
+                            # 3. Limpiar las "filas fantasma" del editor que no tengan Nombre válido
+                            col_critica = 'Nombre' if 'Nombre' in datos_nuevos.columns else datos_nuevos.columns[0]
+                            datos_filtrados = datos_nuevos.dropna(subset=[col_critica])
+                            datos_filtrados = datos_filtrados[datos_filtrados[col_critica].astype(str).str.strip() != ""]
+                            
+                            # 4. OBTENER IDs ACTUALES DE LA BASE DE DATOS
+                            cur.execute(f"SELECT `{columna_id}` FROM {nombre_tabla_db}")
+                            ids_en_db = [row[0] for row in cur.fetchall()]
+                            
+                            # IDs que quedaron en el editor visual
+                            ids_en_editor = datos_filtrados[columna_id].dropna().tolist()
+                            
+                            # 5. ELIMINACIÓN QUIRÚRGICA: Si el ID estaba en la DB pero ya no está en el editor, SE BORRA
+                            for id_db in ids_en_db:
+                                if id_db not in ids_en_editor:
+                                    cur.execute(f"DELETE FROM {nombre_tabla_db} WHERE `{columna_id}` = %s", (id_db,))
+                            
+                            # 6. GUARDAR O ACTUALIZAR LAS FILAS QUE SÍ QUEDARON
+                            cols = ", ".join([f"`{c}`" for c in datos_filtrados.columns])
+                            placeholders = ", ".join(["%s"] * len(datos_filtrados.columns))
+                            
+                            # Usamos ON DUPLICATE KEY UPDATE para que si el ID ya existe, actualice los datos, y si es nuevo, lo inserte
+                            updates = ", ".join([f"`{c}` = VALUES(`{c}`)" for c in datos_filtrados.columns if c != columna_id])
+                            sql_save = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
+                            
+                            for _, row in datos_filtrados.iterrows():
                                 valores = tuple(None if pd.isna(v) else v for v in row)
-                                cur.execute(sql_insert, valores)
+                                cur.execute(sql_save, valores)
                             
+                            # 7. Reactivar restricciones de seguridad
                             cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                             db.commit()
                             
-                            st.session_state.tabla_actual = datos_nuevos.copy()
-                            st.session_state.backup_data = datos_nuevos.copy()
+                            # Sincronizar estados de Streamlit
+                            st.session_state.tabla_actual = datos_filtrados.copy()
+                            st.session_state.backup_data = datos_filtrados.copy()
+                            
+                            if 'editor_version' not in st.session_state:
+                                st.session_state.editor_version = 0
                             st.session_state.editor_version += 1
+                            
                             st.session_state.guardado_exitoso = True
+                            st.session_state.bloqueo_advertencia = False
+                            
                         except Exception as err:
                             db.rollback()
-                            st.error(f"❌ Error crítico al guardar: {err}")
+                            try:
+                                cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                            except:
+                                pass
+                            st.error(f"❌ Error crítico al procesar la actualización: {err}")
                         finally:
                             cur.close()
                     
-                    st.session_state.bloqueo_advertencia = False
                     st.rerun()
                     
             with col_no:
