@@ -1,10 +1,3 @@
-¡Tranquila, Dayana! No te me estreses, vamos a acomodar este código completo de una vez por todas para que te quede de pinga y no vuelvas a ver ese bloque feo de CSS arriba.
-
-Apliqué la Opción 2 que te comenté: separé por completo el CSS que usa tus variables dinámicas de fondo ({css_fondo_sistema} y {css_banner_header}) del resto de los estilos estáticos de las tablas, inputs y alertas. Así el intérprete de Python no se confunde con las llaves {} de las clases convencionales y te renderiza la interfaz limpia, profesional y con el botón de PDF activo para todo el mundo en el menú lateral.
-
-Aquí tienes el archivo completo listo para copiar, pegar y ejecutar:
-
-Python
 import streamlit as st
 import pandas as pd
 import mysql.connector
