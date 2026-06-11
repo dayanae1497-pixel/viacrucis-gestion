@@ -161,20 +161,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-st.markdown(
-    """
-    <style>
-    /* Oculta el botón flotante (+) que aparece al pasar el cursor sobre las celdas */
-    button[data-testid="stDataEditor-AddRowOverlay"] {
-        display: none !important;
-        pointer-events: none !important;
-        visibility: hidden !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
     return mysql.connector.connect(
@@ -448,10 +434,6 @@ if st.session_state.get('usuario_rol') == 1:
         mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
         nombre_tabla_db = mapping[tabla_maestra]
         
-        # Inicialización de variables de estado
-        if "editor_version" not in st.session_state:
-            st.session_state.editor_version = 0
- 
         if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
             df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
             st.session_state.tabla_actual = df_original.copy()
@@ -505,9 +487,8 @@ if st.session_state.get('usuario_rol') == 1:
                     "teléfono": st.column_config.TextColumn("Teléfono")
                 }
             
-            # CASO 2: TABLA VESTUARIO (Nuevo)
+            # CASO 2: TABLA VESTUARIO
             elif nombre_tabla_db == "vestuario_final":
-                # Traemos los mapas de personajes y parroquias
                 df_per_map = pd.read_sql("SELECT id_personaje, Descripción FROM personajes", db)
                 df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
                 
@@ -528,16 +509,30 @@ if st.session_state.get('usuario_rol') == 1:
                         format_func=lambda x: df_par_map[df_par_map["id_parroquia"] == x]["Nombre Parroquia"].iloc[0] if x in df_par_map["id_parroquia"].values else f"ID: {x}"
                     )
                 }
+
+            # --- INYECCIÓN CSS PARA ELIMINAR EL SÍMBOLO "+" FLOTANTE INTERMEDIO ---
+            st.markdown(
+                """
+                <style>
+                button[data-testid="stDataEditor-AddRowOverlay"] {
+                    display: none !important;
+                    pointer-events: none !important;
+                    visibility: hidden !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
             
             # Renderizado común para cualquier tabla seleccionada
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
-                num_rows="dynamic",  # Lo dejamos dynamic para que la tecla Supr siga funcionando
+                num_rows="dynamic",  
                 use_container_width=True, 
                 hide_index=True, 
                 column_config=config_columnas,
                 key=key_dinamica
-                )
+            )
 
             # Inspección de cambios
             cambios = st.session_state.get(key_dinamica, {})
@@ -545,10 +540,19 @@ if st.session_state.get('usuario_rol') == 1:
             hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
             hubo_adicion = len(cambios.get("added_rows", [])) > 0
 
-            # Si el usuario editó o eliminó registros, congelamos pantalla y pedimos confirmación
+            # Si el usuario editó o eliminó registros, filtramos filas fantasma y abrimos la confirmación
             if hubo_eliminacion or hubo_modificacion:
-                # Determinamos una columna crítica para limpiar filas vacías fantasmas según la tabla
-                col_critica = 'descripcion' if nombre_tabla_db == 'vestuario_final' else (df_editado.columns[1] if len(df_editado.columns) > 1 else df_editado.columns[0])
+                # Determinamos una columna crítica según la tabla activa para limpiar filas vacías
+                if nombre_tabla_db == "participantes":
+                    col_critica = "Nombre"
+                elif nombre_tabla_db == "vestuario_final":
+                    col_critica = "descripcion"
+                elif nombre_tabla_db == "gastos":
+                    col_critica = "concepto"
+                elif nombre_tabla_db == "patrocinantes":
+                    col_critica = "negocio"
+                else:
+                    col_critica = df_editado.columns[1] if len(df_editado.columns) > 1 else df_editado.columns[0]
                 
                 df_limpio = df_editado.dropna(subset=[col_critica])
                 df_limpio = df_limpio[df_limpio[col_critica].astype(str).str.strip() != ""]
@@ -583,11 +587,21 @@ if st.session_state.get('usuario_rol') == 1:
                             # 1. Desactivar restricciones temporalmente
                             cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
                             
-                            # 2. Identificar la columna ID (suele ser la primera, ej: 'id_participante' o 'id')
+                            # 2. Identificar la columna ID
                             columna_id = datos_nuevos.columns[0]
                             
-                            # 3. Limpiar las "filas fantasma" del editor que no tengan Nombre válido
-                            col_critica = 'Nombre' if 'Nombre' in datos_nuevos.columns else datos_nuevos.columns[0]
+                            # 3. Limpiar las "filas fantasma" finales mediante la columna crítica
+                            if nombre_tabla_db == "participantes":
+                                col_critica = "Nombre"
+                            elif nombre_tabla_db == "vestuario_final":
+                                col_critica = "descripcion"
+                            elif nombre_tabla_db == "gastos":
+                                col_critica = "concepto"
+                            elif nombre_tabla_db == "patrocinantes":
+                                col_critica = "negocio"
+                            else:
+                                col_critica = datos_nuevos.columns[1] if len(datos_nuevos.columns) > 1 else datos_nuevos.columns[0]
+                                
                             datos_filtrados = datos_nuevos.dropna(subset=[col_critica])
                             datos_filtrados = datos_filtrados[datos_filtrados[col_critica].astype(str).str.strip() != ""]
                             
@@ -607,7 +621,7 @@ if st.session_state.get('usuario_rol') == 1:
                             cols = ", ".join([f"`{c}`" for c in datos_filtrados.columns])
                             placeholders = ", ".join(["%s"] * len(datos_filtrados.columns))
                             
-                            # Usamos ON DUPLICATE KEY UPDATE para que si el ID ya existe, actualice los datos, y si es nuevo, lo inserte
+                            # Usamos ON DUPLICATE KEY UPDATE para sincronizaciones
                             updates = ", ".join([f"`{c}` = VALUES(`{c}`)" for c in datos_filtrados.columns if c != columna_id])
                             sql_save = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
                             
@@ -622,9 +636,6 @@ if st.session_state.get('usuario_rol') == 1:
                             # Sincronizar estados de Streamlit
                             st.session_state.tabla_actual = datos_filtrados.copy()
                             st.session_state.backup_data = datos_filtrados.copy()
-                            
-                            if 'editor_version' not in st.session_state:
-                                st.session_state.editor_version = 0
                             st.session_state.editor_version += 1
                             
                             st.session_state.guardado_exitoso = True
