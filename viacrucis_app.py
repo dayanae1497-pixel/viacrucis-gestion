@@ -56,7 +56,7 @@ if img_banner_64:
 else:
     css_banner_header = "background-color: #150324;"
 
-# --- CONTROLADORES DE ESTILO CSS CORREGIDOS ---
+# --- CONTROLADORES DE ESTILO CSS ---
 st.markdown(f"""
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <style>
@@ -136,13 +136,8 @@ div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {{
     margin-top: 20px;
     margin-bottom: 15px;
 }}
-button[data-testid="stDataEditor-AddRowOverlay"],
-.stDataEditor div[data-baseweb="table"] div,
-.stDataEditor canvas {{
-    cursor: default !important;
-}}
 </style>
-""", unsafe_allow_html=True)
+""", unsafe_allowed_html=True)
 
 # ENCABEZADO DEL SISTEMA RENDERIZADO
 st.markdown("""
@@ -171,7 +166,7 @@ def cargar_tabla_optimizado(nombre_tabla):
     return df
 
 # =========================================================
-# FUNCIÓN MAESTRA DEL PDF (UBICADA AL PRINCIPIO)
+# FUNCIÓN MAESTRA DEL PDF (ESTILOS VISUALES COMPATIBLES)
 # =========================================================
 def generar_reporte_final(df_p, df_v, df_g, df_pat):
     pdf = FPDF()
@@ -282,16 +277,14 @@ if st.sidebar.button("Cerrar Sesión"):
     st.session_state['autenticado'] = False
     st.rerun()
 
-nombres_tabs = ["Personal  👥 ", "Economía  💵 ", "Inventario  📦 ", "Reporte Maestro  📄 "]
-if st.session_state['usuario_rol'] == 1:
-    nombres_tabs.append("Data  📝 ")
-
+# DECLARACIÓN FIJA DE LAS 5 PESTAÑAS PARA PREVENIR ERRORES DE CACHÉ VISUAL
+nombres_tabs = ["Personal  👥 ", "Economía  💵 ", "Inventario  📦 ", "Reporte Maestro  📄 ", "Data  📝 "]
 tabs = st.tabs(nombres_tabs)
 db = conectar()
 
 # --- TAB 0: PERSONAL ---
 with tabs[0]:
-    st.markdown("<h2 style='color:#e5b82b;'>Personal  👥 </h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#e5b82b;'>Personal  👥 </h2>", unsafe_allowed_html=True)
     query_p = """
     SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje,
     r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia,
@@ -396,7 +389,7 @@ with tabs[2]:
         st.subheader(" 🛠 ️ Utilería")
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
-# --- TAB 3: REPORTE MAESTRO (NUEVO TAB INDEPENDIENTE) ---
+# --- TAB 3: REPORTE MAESTRO (UBICACIÓN CORREGIDA Y ACCESIBLE SIEMPRE) ---
 with tabs[3]:
     st.markdown("<h2 style='color:#e5b82b;'>📄 Centro de Reportes Oficiales</h2>", unsafe_allow_html=True)
     st.write("Presiona el botón para compilar la data actual del sistema en un PDF limpio y formateado con la identidad visual del Viacrucis.")
@@ -404,7 +397,7 @@ with tabs[3]:
     if st.button("🚀 Preparar Reporte Maestro"):
         try:
             with st.spinner("Compilando toda la información con diseño premium..."):
-                # Query de participantes uniendo la descripción de la parroquia real
+                # Captura de datos con descripciones resueltas
                 q_pdf_p = """
                 SELECT p.Nombre, p.Apellido, p.teléfono AS Teléfono, pa.`Nombre Parroquia` AS Parroquia
                 FROM participantes p
@@ -412,7 +405,6 @@ with tabs[3]:
                 """
                 df_pdf_p = pd.read_sql(q_pdf_p, db)
 
-                # Query de vestuario trayendo el nombre de la parroquia real
                 q_pdf_v = """
                 SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia`
                 FROM vestuario_final v
@@ -423,7 +415,7 @@ with tabs[3]:
                 df_pdf_g = pd.read_sql("SELECT * FROM gastos", db)
                 df_pdf_pat = pd.read_sql("SELECT * FROM patrocinantes", db)
 
-                # Generamos el binario
+                # Compilación del archivo binario
                 pdf_raw = generar_reporte_final(df_pdf_p, df_pdf_v, df_pdf_g, df_pdf_pat)
 
                 st.success(" ✅   ¡ Reporte visual generado con éxito!")
@@ -436,7 +428,7 @@ with tabs[3]:
         except Exception as e:
             st.error(f" ❌  Error al compilar el reporte visual: {e}")
 
-# --- TAB 4: DATA (SOLO ADMINISTRADOR) ---
+# --- TAB 4: DATA (EXCLUSIVO ROL ADMINISTRADOR EN ÍNDICE 4) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[4]:
         st.header(" 📝  Registro de Datos")
@@ -674,21 +666,4 @@ if st.session_state.get('usuario_rol') == 1:
                             db.rollback()
                             try: cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                             except: pass
-                            st.error(f" ❌  Error crítico al procesar la actualización: {err}")
-                        finally:
-                            cur.close()
-                        st.rerun()
-
-            with col_no:
-                if st.button(" 🔴  NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    st.session_state.tabla_actual = st.session_state.backup_data.copy()
-                    if "df_congelado_cambios" in st.session_state:
-                        del st.session_state["df_congelado_cambios"]
-                    st.session_state.editor_version += 1
-                    st.session_state.cambios_revertidos = True
-                    st.session_state.bloqueo_advertencia = False
-                    st.rerun()
-
-# --- SECTION 3: CIERRE DE CONEXIÓN GLOBAL ---
-if 'db' in locals() and db.is_connected():
-    db.close()
+                            st.error(f" ❌  Error crítico al procesar la actualización
