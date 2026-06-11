@@ -161,6 +161,20 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+st.markdown(
+    """
+    <style>
+    /* Oculta el botón flotante (+) que aparece al pasar el cursor sobre las celdas */
+    button[data-testid="stDataEditor-AddRowOverlay"] {
+        display: none !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
+    }
+    </style>
+    """,
+    unsafe_allow_index=True
+)
+
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
     return mysql.connector.connect(
@@ -518,12 +532,12 @@ if st.session_state.get('usuario_rol') == 1:
             # Renderizado común para cualquier tabla seleccionada
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
-                num_rows="dynamic",  
+                num_rows="dynamic",  # Lo dejamos dynamic para que la tecla Supr siga funcionando
                 use_container_width=True, 
                 hide_index=True, 
                 column_config=config_columnas,
                 key=key_dinamica
-            )
+                )
 
             # Inspección de cambios
             cambios = st.session_state.get(key_dinamica, {})
