@@ -35,33 +35,47 @@ def obtener_base64_imagen(nombre_archivo):
 img_fondo_64 = obtener_base64_imagen("image.png")
 img_banner_64 = obtener_base64_imagen("Presente.png")
 
-# Configuración dinámica del fondo general (image.png) sin usar f-strings conflictivos
+# Configuración dinámica del fondo general (image.png)
 if img_fondo_64:
-    css_fondo_sistema = "background-image: linear-gradient(180deg, rgba(50, 19, 84, 0.85) 0%, rgba(28, 9, 51, 0.92) 50%, rgba(13, 2, 26, 0.98) 100%), url('data:image/png;base64," + img_fondo_64 + "'); background-size: cover; background-attachment: fixed; background-position: center;"
+    css_fondo_sistema = f"background-image: linear-gradient(180deg, rgba(50, 19, 84, 0.85) 0%, rgba(28, 9, 51, 0.92) 50%, rgba(13, 2, 26, 0.98) 100%), url('data:image/png;base64,{img_fondo_64}'); background-size: cover; background-attachment: fixed; background-position: center;"
 else:
     css_fondo_sistema = "background: linear-gradient(180deg, #321354 0%, #1c0933 50%, #0d021a 100%) !important;"
 
 # Configuración dinámica del banner (Presente.png)
 if img_banner_64:
-    css_banner_header = "background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)), url('data:image/png;base64," + img_banner_64 + "'); background-size: cover; background-position: center;"
+    css_banner_header = f"background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)), url('data:image/png;base64,{img_banner_64}'); background-size: cover; background-position: center;"
 else:
     css_banner_header = "background-color: #150324;"
 
 
 # =========================================================================
-# CONTROLADORES DE ESTILO CSS CORREGIDOS (Sin f-strings para evitar roturas)
+# CONTROLADORES DE ESTILO INYECTADOS CON ST.HTML (Evita roturas de Markdown)
 # =========================================================================
 
-# Inyección de estilos generales (Absolutamente seguro: llaves simples y normales)
-st.markdown("""
+st.html(f"""
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <style>
-@import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght=400;700;800;900&display=swap');
 
-html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {
+html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label, div {{
     font-family: 'League Spartan', sans-serif !important;
-}
-.header-titulo {
+}}
+
+.stApp {{
+    {css_fondo_sistema}
+}}
+
+.header-sistema {{
+    {css_banner_header}
+    border-radius: 8px;
+    padding: 55px 30px;
+    text-align: center;
+    margin-bottom: 10px;
+    border-bottom: 4px solid #b58c24;
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.5);
+}}
+
+.header-titulo {{
     color: #ffffff !important;
     font-size: 52px !important;
     font-weight: 900 !important;
@@ -69,8 +83,9 @@ html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {
     margin: 0 !important;
     letter-spacing: -1px;
     text-shadow: 3px 3px 10px rgba(0, 0, 0, 0.85);
-}
-.banner-acceso {
+}}
+
+.banner-acceso {{
     background-color: #2b203a;
     padding: 15px;
     text-align: center;
@@ -78,39 +93,50 @@ html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {
     margin-top: 15px;
     margin-bottom: 30px;
     box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
-}
-.texto-acceso {
+}}
+
+.texto-acceso {{
     color: #e5b82b !important;
     font-size: 44px !important;
     font-weight: 900 !important;
     margin: 0 !important;
-}
-.stTextInput > div > div > input {
+}}
+
+.stTextInput > div > div > input {{
     background-color: #ffffff !important;
     color: #150324 !important;
     font-size: 18px !important;
     font-weight: 700 !important;
     border-radius: 35px !important;
     padding: 14px 25px !important;
-}
-.stTabs [data-baseweb="tab-list"] {
+}}
+
+.stTabs [data-baseweb="tab-list"] {{
     background-color: #312d38 !important;
     padding: 10px 20px !important;
     border-radius: 6px !important;
-}
-.stTabs [data-baseweb="tab"] {
+}}
+
+.stTabs [data-baseweb="tab"] {{
     color: #e5b82b !important;
     font-weight: 800 !important;
     font-size: 19px !important;
-}
-.stTabs [aria-selected="true"] {
+}}
+
+.stTabs [aria-selected="true"] {{
     background-color: #1c0933 !important;
     border-bottom: 4px solid #e5b82b !important;
-}
-div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {
+}}
+
+/* Forzamos el color del texto dentro de las tablas y editores */
+div[data-testid="stDataFrame"] div, 
+div[data-testid="stDataEditor"] div,
+div[data-testid="stDataFrame"] span,
+div[data-testid="stDataEditor"] span {{
     color: #ffffff !important;
-}
-.aviso-seguridad-box {
+}}
+
+.aviso-seguridad-box {{
     background-color: #ffffff !important;
     color: #000000 !important;
     border-radius: 12px;
@@ -119,25 +145,23 @@ div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {
     box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
     margin-top: 20px;
     margin-bottom: 15px;
-}
+}}
+
 button[data-testid="stDataEditor-AddRowOverlay"],
 .stDataEditor div[data-baseweb="table"] div,
-.stDataEditor canvas {
+.stDataEditor canvas {{
     cursor: default !important;
-}
+}}
 </style>
-""", unsafe_allow_html=True)
-
-# Inyección limpia del fondo y banner usando concatenación pura de Strings en Python
-st.markdown("<style>.stApp { " + css_fondo_sistema + " } .header-sistema { " + css_banner_header + " border-radius: 8px; padding: 55px 30px; text-align: center; margin-bottom: 10px; border-bottom: 4px solid #b58c24; box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.5); }</style>", unsafe_allow_html=True)
+""")
 
 
-# RENDERIZADO DEL ENCABEZADO PRINCIPAL
-st.markdown("""
+# RENDERIZADO DEL ENCABEZADO PRINCIPAL (Usando st.html para evitar fallos)
+st.html("""
 <div class="header-sistema">
 <h1 class="header-titulo">Sistema de gestión<br>de Patrimonio</h1>
 </div>
-""", unsafe_allow_html=True)
+""")
 
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
@@ -216,11 +240,11 @@ def generar_pdf_reporte(db_conn):
 
 # --- FILTRO Y PROTECCIÓN DE ACCESO ---
 if not st.session_state['autenticado']:
-    st.markdown("""
+    st.html("""
     <div class="banner-acceso">
     <h2 class="texto-acceso">Acceso al sistema 🔒🔑 </h2>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
     col_cen, _ = st.columns([2, 1])
     with col_cen:
@@ -589,15 +613,15 @@ if st.session_state.get('usuario_rol') == 1:
             elif hubo_adicion:
                 st.session_state.tabla_actual = df_editado.copy()
         else:
-            st.markdown(f"""
+            st.html("""
             <div style="background-color: #ffeaa7; padding: 20px; border-radius: 10px; border-left: 8px solid #e17055; margin-bottom: 20px;">
                 <p style="color: #d63031; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;"> ⚠ ️ AVISO DE SEGURIDAD CRÍTICO ⚠ ️</p>
                 <h2 style="color: #000000; font-size: 28px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
                 <p style="color: #2f3542; font-size: 16px; text-align: center; font-weight: bold; margin-bottom: 10px;">
-                    Has editado o eliminado registros existentes en la tabla '{tabla_maestra}'.<br>El sistema mantendrá bloqueada la pantalla hasta que decidas:
+                    Has editado o eliminado registros existentes en la tabla. El sistema mantendrá bloqueada la pantalla hasta que decidas:
                 </p>
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
             col_si, col_no = st.columns(2)
             datos_nuevos = st.session_state.get("df_congelado_cambios")
