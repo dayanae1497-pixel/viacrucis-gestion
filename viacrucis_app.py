@@ -201,10 +201,11 @@ if not st.session_state['autenticado']:
                 else:
                     st.error(" ❌  Credenciales incorrectas.")
                     st.stop()
-# --- INTERFAZ PRINCIPAL ---
+                    
+# --- INTERFAZ PRINCIPAL (Solo se ejecuta si pasa el control de acceso) ---
 st.sidebar.markdown(f" 👤  **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
 
-# --- CLASE AUXILIAR Y GENERADOR DE PDF (NUEVA AGREGACIÓN) ---
+# --- CLASE AUXILIAR Y GENERADOR DE PDF ---
 class PDFReporte(FPDF):
     def header(self):
         # Colores del sistema corporativo: Morado oscuro (#150324) y Dorado (#e5b82b)
@@ -216,9 +217,9 @@ class PDFReporte(FPDF):
         self.set_text_color(229, 184, 43)
         self.set_font('Arial', 'I', 10)
         self.cell(0, 5, f'Reporte Oficial - Generado el: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 1, 'C')
-        # Línea divisoria dorada inferior del banner
+        # Línea divisoria dorada inferior del banner (Corregido a set_line_width)
         self.set_draw_color(229, 184, 43)
-        self.set_linewidth(1)
+        self.set_line_width(1)
         self.line(0, 38, 210, 38)
         self.ln(15)
 
@@ -322,7 +323,7 @@ def generar_pdf_patrimonio():
     db_pdf.close()
     return pdf.output(dest='S').encode('latin1')
 
-# Botón de Descarga colocado dinámicamente en la Sidebar de la Interfaz Activa
+# Botón de Descarga seguro en Sidebar
 try:
     pdf_bytes = generar_pdf_patrimonio()
     st.sidebar.download_button(
