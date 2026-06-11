@@ -3,14 +3,13 @@ import pandas as pd
 import mysql.connector
 from fpdf import FPDF
 from datetime import datetime
-import base64
 import os
-from io import BytesIO  # <-- Manejo eficiente del PDF en memoria RAM
+from io import BytesIO
 
-# 1. CONFIGURACIÓN DE PÁGINA (Debe ser estrictamente lo primero)
+# 1. CONFIGURACIÓN DE PÁGINA (Estrictamente lo primero)
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
-# 2. INICIALIZACIÓN SEGURA DE SESIONES (Previene AttributeErrors)
+# 2. INICIALIZACIÓN SEGURA DE SESIONES
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 if 'editor_version' not in st.session_state:
@@ -20,53 +19,33 @@ if 'bloqueo_advertencia' not in st.session_state:
 if 'tabla_actual' not in st.session_state:
     st.session_state['tabla_actual'] = None
 
-# --- FUNCIÓN AUXILIAR PARA PROCESAR IMÁGENES A BASE64 ---
-def obtener_base64_imagen(nombre_archivo):
-    ruta = nombre_archivo
-    if not os.path.exists(ruta) and os.path.exists(f"assets/{nombre_archivo}"):
-        ruta = f"assets/{nombre_archivo}"
-
-    if os.path.exists(ruta):
-        with open(ruta, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode()
-    return ""
-
-# Procesamos ambas imágenes de diseño
-img_fondo_64 = obtener_base64_imagen("image.png")
-img_banner_64 = obtener_base64_imagen("Presente.png")
-
-# Configuración dinámica del fondo general (image.png)
-if img_fondo_64:
-    css_fondo_sistema = f"background-image: linear-gradient(180deg, rgba(50, 19, 84, 0.85) 0%, rgba(28, 9, 51, 0.92) 50%, rgba(13, 2, 26, 0.98) 100%), url('data:image/png;base64,{img_fondo_64}'); background-size: cover; background-attachment: fixed; background-position: center;"
-else:
-    css_fondo_sistema = "background: linear-gradient(180deg, #321354 0%, #1c0933 50%, #0d021a 100%) !important;"
-
-# Configuración dinámica del banner (Presente.png)
-if img_banner_64:
-    css_banner_header = f"background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)), url('data:image/png;base64,{img_banner_64}'); background-size: cover; background-position: center;"
-else:
-    css_banner_header = "background-color: #150324;"
-
+# --- CONFIGURACIÓN DE RUTAS LOCALES DIRECTAS (Rápido y sin sobrecarga) ---
+ruta_fondo = "assets/image.png"
+ruta_banner = "assets/Presente.png"
 
 # =========================================================================
-# CONTROLADORES DE ESTILO INYECTADOS CON ST.HTML (Evita roturas de Markdown)
+# CONTROLADOR DE ESTILOS LIMPIO (Rutas directas de archivo, cero lag)
 # =========================================================================
-
-st.html(f"""
+st.markdown(f"""
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <style>
-@import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght=400;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
 
 html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label, div {{
     font-family: 'League Spartan', sans-serif !important;
 }}
 
 .stApp {{
-    {css_fondo_sistema}
+    background-image: linear-gradient(180deg, rgba(50, 19, 84, 0.85) 0%, rgba(28, 9, 51, 0.92) 50%, rgba(13, 2, 26, 0.98) 100%), url('{ruta_fondo}');
+    background-size: cover;
+    background-attachment: fixed;
+    background-position: center;
 }}
 
 .header-sistema {{
-    {css_banner_header}
+    background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)), url('{ruta_banner}');
+    background-size: cover;
+    background-position: center;
     border-radius: 8px;
     padding: 55px 30px;
     text-align: center;
@@ -128,7 +107,6 @@ html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label, div {{
     border-bottom: 4px solid #e5b82b !important;
 }}
 
-/* Forzamos el color del texto dentro de las tablas y editores */
 div[data-testid="stDataFrame"] div, 
 div[data-testid="stDataEditor"] div,
 div[data-testid="stDataFrame"] span,
@@ -153,15 +131,14 @@ button[data-testid="stDataEditor-AddRowOverlay"],
     cursor: default !important;
 }}
 </style>
-""")
+""", unsafe_allow_html=True)
 
-
-# RENDERIZADO DEL ENCABEZADO PRINCIPAL (Usando st.html para evitar fallos)
-st.html("""
+# RENDERIZADO DEL ENCABEZADO
+st.markdown("""
 <div class="header-sistema">
 <h1 class="header-titulo">Sistema de gestión<br>de Patrimonio</h1>
 </div>
-""")
+""", unsafe_allow_html=True)
 
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
@@ -188,14 +165,12 @@ def generar_pdf_reporte(db_conn):
     pdf.add_page()
     pdf.set_text_color(0, 0, 0)
     
-    # Encabezado del documento PDF
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 10, "VIACRUCIS 2026 - REPORTE GENERAL DE PATRIMONIO", ln=True, align='C')
     pdf.set_font("Arial", 'I', 10)
     pdf.cell(0, 10, f"Fecha de emision: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", ln=True, align='C')
     pdf.ln(5)
     
-    # Sección 1: Finanzas generales
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, "1. Resumen Financiero (Economia)", ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
@@ -214,7 +189,6 @@ def generar_pdf_reporte(db_conn):
     pdf.cell(60, 8, f"Saldo Neto Disponible: {saldo:,.2f} COP", ln=True)
     pdf.ln(6)
     
-    # Sección 2: Inventario Físico
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, "2. Inventario General de Utileria", ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
@@ -222,7 +196,6 @@ def generar_pdf_reporte(db_conn):
     
     df_utileria = pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db_conn)
     
-    # Construcción de la tabla FPDF
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(50, 7, "Objeto", border=1)
     pdf.cell(25, 7, "Cantidad", border=1, align='C')
@@ -240,11 +213,11 @@ def generar_pdf_reporte(db_conn):
 
 # --- FILTRO Y PROTECCIÓN DE ACCESO ---
 if not st.session_state['autenticado']:
-    st.html("""
+    st.markdown("""
     <div class="banner-acceso">
     <h2 class="texto-acceso">Acceso al sistema 🔒🔑 </h2>
     </div>
-    """)
+    """, unsafe_allow_html=True)
 
     col_cen, _ = st.columns([2, 1])
     with col_cen:
@@ -272,12 +245,10 @@ if not st.session_state['autenticado']:
 # --- FLUJO DE INTERFAZ DEL OPERADOR AUTENTICADO ---
 db = conectar()
 
-# Panel de control lateral izquierdo (Sidebar)
 st.sidebar.markdown(f" 👤 **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
 st.sidebar.markdown("---")
 st.sidebar.header(" 🖨️ Reportes")
 
-# Generación automática del PDF disponible para cualquier rol en el menú lateral
 try:
     pdf_data = generar_pdf_reporte(db)
     st.sidebar.download_button(
@@ -295,7 +266,6 @@ if st.sidebar.button("Cerrar Sesión", use_container_width=True):
     st.session_state['autenticado'] = False
     st.rerun()
 
-# Definición de pestañas principales de visualización
 nombres_tabs = ["Personal 👥 ", "Economía 💵 ", "Inventario 📦 "]
 if st.session_state['usuario_rol'] == 1:
     nombres_tabs.append("Data 📝 ")
@@ -613,7 +583,7 @@ if st.session_state.get('usuario_rol') == 1:
             elif hubo_adicion:
                 st.session_state.tabla_actual = df_editado.copy()
         else:
-            st.html("""
+            st.markdown("""
             <div style="background-color: #ffeaa7; padding: 20px; border-radius: 10px; border-left: 8px solid #e17055; margin-bottom: 20px;">
                 <p style="color: #d63031; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;"> ⚠ ️ AVISO DE SEGURIDAD CRÍTICO ⚠ ️</p>
                 <h2 style="color: #000000; font-size: 28px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
@@ -621,7 +591,7 @@ if st.session_state.get('usuario_rol') == 1:
                     Has editado o eliminado registros existentes en la tabla. El sistema mantendrá bloqueada la pantalla hasta que decidas:
                 </p>
             </div>
-            """)
+            """, unsafe_allow_html=True)
 
             col_si, col_no = st.columns(2)
             datos_nuevos = st.session_state.get("df_congelado_cambios")
