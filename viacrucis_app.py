@@ -459,27 +459,65 @@ if st.session_state.get('usuario_rol') == 1:
             version_actual = st.session_state.editor_version
             key_dinamica = f"editor_{nombre_tabla_db}_{version_actual}"
             
+            # --- CONFIGURACIÓN DINÁMICA DE COLUMNAS (Mapeo de IDs a Descripciones) ---
+            config_columnas = {}
+            
+            if nombre_tabla_db == "participantes":
+                # Traemos los catálogos de la DB para los Selectbox
+                df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
+                df_rol_map = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
+                df_com_map = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
+                
+                config_columnas = {
+                    "id_participante": st.column_config.NumberColumn("ID", disabled=True),
+                    "Nombre": st.column_config.TextColumn("Nombre"),
+                    "Apellido": st.column_config.TextColumn("Apellido"),
+                    "Edad": st.column_config.NumberColumn("Edad"),
+                    "id_parroquia": st.column_config.SelectboxColumn(
+                        "Parroquia",
+                        options=df_par_map["id_parroquia"].tolist(),
+                        format_func=lambda x: df_par_map[df_par_map["id_parroquia"] == x]["Nombre Parroquia"].iloc[0] if x in df_par_map["id_parroquia"].values else f"ID: {x}"
+                    ),
+                    "id_rol": st.column_config.SelectboxColumn(
+                        "Rol",
+                        options=df_rol_map["id_rol"].tolist(),
+                        format_func=lambda x: df_rol_map[df_rol_map["id_rol"] == x]["Descripción"].iloc[0] if x in df_rol_map["id_rol"].values else f"ID: {x}"
+                    ),
+                    "id_comision": st.column_config.SelectboxColumn(
+                        "Comisión",
+                        options=df_com_map["id_comsion"].tolist(),
+                        format_func=lambda x: df_com_map[df_com_map["id_comsion"] == x]["Descripción"].iloc[0] if x in df_com_map["id_comsion"].values else f"ID: {x}"
+                    ),
+                    "teléfono": st.column_config.TextColumn("Teléfono")
+                }
+            
+            # Dejamos "dynamic" para que el CRUD permita eliminar (seleccionando la fila y pulsando Supr)
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
-                num_rows="dynamic", 
+                num_rows="dynamic",  
                 use_container_width=True, 
                 hide_index=True, 
+                column_config=config_columnas,
                 key=key_dinamica
             )
- 
+
             # Inspección de cambios
             cambios = st.session_state.get(key_dinamica, {})
             hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
             hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
             hubo_adicion = len(cambios.get("added_rows", [])) > 0
- 
+
             # Si el usuario editó o eliminó registros, congelamos pantalla y pedimos confirmación
             if hubo_eliminacion or hubo_modificacion:
-                st.session_state.df_congelado_cambios = df_editado.copy()
+                # Filtrar el dataframe congelado para asegurarse de que no mande filas fantasma vacías
+                col_critica = 'Nombre' if 'Nombre' in df_editado.columns else df_editado.columns[0]
+                df_limpio = df_editado.dropna(subset=[col_critica])
+                df_limpio = df_limpio[df_limpio[col_critica].astype(str).str.strip() != ""]
+                
+                st.session_state.df_congelado_cambios = df_limpio.copy()
                 st.session_state.bloqueo_advertencia = True
                 st.rerun()
                 
-            # Si sólo está agregando renglones en blanco dentro del editor, mantenemos en memoria
             elif hubo_adicion:
                 st.session_state.tabla_actual = df_editado.copy()
  
