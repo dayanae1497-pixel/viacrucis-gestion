@@ -16,6 +16,11 @@ if 'bloqueo_advertencia' not in st.session_state:
     st.session_state['bloqueo_advertencia'] = False
 if 'tabla_actual' not in st.session_state:
     st.session_state['tabla_actual'] = None
+# --- AGREGA ESTAS DOS LÍNEAS NUEVAS ---
+if 'usuario_nom' not in st.session_state:
+    st.session_state['usuario_nom'] = "Invitado"
+if 'usuario_rol' not in st.session_state:
+    st.session_state['usuario_rol'] = None
 # --- FUNCIÓN AUXILIAR PARA PROCESAR IMÁGENES A BASE64 ---
 def obtener_base64_imagen(nombre_archivo):
     ruta = nombre_archivo
@@ -203,8 +208,13 @@ if not st.session_state['autenticado']:
                     st.stop()
                     
 # --- INTERFAZ PRINCIPAL (Solo se ejecuta si pasa el control de acceso) ---
-st.sidebar.markdown(f" 👤  **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
-
+if st.session_state['autenticado']:
+    st.sidebar.markdown(f" 👤  **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
+    if st.sidebar.button("Cerrar Sesión"):
+        st.session_state['autenticado'] = False
+        st.session_state['usuario_nom'] = "Invitado"
+        st.session_state['usuario_rol'] = None
+        st.rerun()
 # --- CLASE AUXILIAR Y GENERADOR DE PDF ---
 class PDFReporte(FPDF):
     def header(self):
