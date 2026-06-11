@@ -1,3 +1,12 @@
+¡Coño, mano! Qué dolor de cabeza con las llaves de Python. Ya vi las capturas: te sigue escupiendo el código CSS crudo en texto plano arriba del banner porque el f-string de la "Parte B" se sigue volviendo un ocho con los porcentajes (0%, 50%, 100%) y las llaves que definen las propiedades del degradado lineal.
+
+Cuando Python ve un f"""...""", asume que absolutamente cualquier cosa que tenga llaves o estructuras similares es una variable.
+
+Para cortar el problema de raíz y que te quede de pinga sin más errores raros, eliminé por completo los f-strings en los bloques de CSS. Ahora concatenamos las variables de las imágenes directamente usando variables estándar de Python antes de inyectar el HTML. Así, el CSS es 100% texto plano y limpio para Streamlit.
+
+Aquí tienes el código completo y corregido. Copia todo esto, limpia tu archivo actual, pégalo y dale candela:
+
+Python
 import streamlit as st
 import pandas as pd
 import mysql.connector
@@ -35,35 +44,24 @@ def obtener_base64_imagen(nombre_archivo):
 img_fondo_64 = obtener_base64_imagen("image.png")
 img_banner_64 = obtener_base64_imagen("Presente.png")
 
-# Configuración dinámica del fondo general (image.png)
+# Configuración dinámica del fondo general (image.png) sin usar f-strings conflictivos
 if img_fondo_64:
-    css_fondo_sistema = f"""
-    background-image: linear-gradient(180deg, rgba(50, 19, 84, 0.85) 0%, rgba(28, 9, 51, 0.92) 50%, rgba(13, 2, 26, 0.98) 100%),
-    url("data:image/png;base64,{img_fondo_64}");
-    background-size: cover;
-    background-attachment: fixed;
-    background-position: center;
-    """
+    css_fondo_sistema = "background-image: linear-gradient(180deg, rgba(50, 19, 84, 0.85) 0%, rgba(28, 9, 51, 0.92) 50%, rgba(13, 2, 26, 0.98) 100%), url('data:image/png;base64," + img_fondo_64 + "'); background-size: cover; background-attachment: fixed; background-position: center;"
 else:
     css_fondo_sistema = "background: linear-gradient(180deg, #321354 0%, #1c0933 50%, #0d021a 100%) !important;"
 
 # Configuración dinámica del banner (Presente.png)
 if img_banner_64:
-    css_banner_header = f"""
-    background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)),
-    url("data:image/png;base64,{img_banner_64}");
-    background-size: cover;
-    background-position: center;
-    """
+    css_banner_header = "background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)), url('data:image/png;base64," + img_banner_64 + "'); background-size: cover; background-position: center;"
 else:
     css_banner_header = "background-color: #150324;"
 
 
 # =========================================================================
-# CONTROLADORES DE ESTILO CSS (Sintaxis separada de manera segura)
+# CONTROLADORES DE ESTILO CSS CORREGIDOS (Sin f-strings para evitar roturas)
 # =========================================================================
 
-# PARTE A: Estilos fijos sin variables de Python (Llaves simples normales, no se rompe)
+# Inyección de estilos generales (Absolutamente seguro: llaves simples y normales)
 st.markdown("""
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <style>
@@ -139,23 +137,8 @@ button[data-testid="stDataEditor-AddRowOverlay"],
 </style>
 """, unsafe_allow_html=True)
 
-# PARTE B: Estilos dinámicos inyectados con f-string (Únicamente lo que usa variables)
-st.markdown(f"""
-<style>
-.stApp {{
-    {css_fondo_sistema}
-}}
-.header-sistema {{
-    {css_banner_header}
-    border-radius: 8px;
-    padding: 55px 30px;
-    text-align: center;
-    margin-bottom: 10px;
-    border-bottom: 4px solid #b58c24;
-    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.5);
-}}
-</style>
-""", unsafe_allow_html=True)
+# Inyección limpia del fondo y banner usando concatenación pura de Strings en Python
+st.markdown("<style>.stApp { " + css_fondo_sistema + " } .header-sistema { " + css_banner_header + " border-radius: 8px; padding: 55px 30px; text-align: center; margin-bottom: 10px; border-bottom: 4px solid #b58c24; box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.5); }</style>", unsafe_allow_html=True)
 
 
 # RENDERIZADO DEL ENCABEZADO PRINCIPAL
