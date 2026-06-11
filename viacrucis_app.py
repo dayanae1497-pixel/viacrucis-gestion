@@ -462,8 +462,8 @@ if st.session_state.get('usuario_rol') == 1:
             # --- CONFIGURACIÓN DINÁMICA DE COLUMNAS (Mapeo de IDs a Descripciones) ---
             config_columnas = {}
             
+            # CASO 1: TABLA PARTICIPANTES
             if nombre_tabla_db == "participantes":
-                # Traemos los catálogos de la DB para los Selectbox
                 df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
                 df_rol_map = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
                 df_com_map = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
@@ -491,7 +491,31 @@ if st.session_state.get('usuario_rol') == 1:
                     "teléfono": st.column_config.TextColumn("Teléfono")
                 }
             
-            # Dejamos "dynamic" para que el CRUD permita eliminar (seleccionando la fila y pulsando Supr)
+            # CASO 2: TABLA VESTUARIO (Nuevo)
+            elif nombre_tabla_db == "vestuario_final":
+                # Traemos los mapas de personajes y parroquias
+                df_per_map = pd.read_sql("SELECT id_personaje, Descripción FROM personajes", db)
+                df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
+                
+                config_columnas = {
+                    "id_vestuario": st.column_config.NumberColumn("ID", disabled=True),
+                    "id_personaje": st.column_config.SelectboxColumn(
+                        "Personaje / Papel",
+                        help="Selecciona el personaje asignado a este vestuario",
+                        options=df_per_map["id_personaje"].tolist(),
+                        format_func=lambda x: df_per_map[df_per_map["id_personaje"] == x]["Descripción"].iloc[0] if x in df_per_map["id_personaje"].values else f"ID: {x}"
+                    ),
+                    "piezas": st.column_config.NumberColumn("Piezas", min_value=1),
+                    "descripcion": st.column_config.TextColumn("Descripción Vestuario"),
+                    "id_parroquia": st.column_config.SelectboxColumn(
+                        "Parroquia Dueña",
+                        help="Parroquia a la que pertenece el vestuario",
+                        options=df_par_map["id_parroquia"].tolist(),
+                        format_func=lambda x: df_par_map[df_par_map["id_parroquia"] == x]["Nombre Parroquia"].iloc[0] if x in df_par_map["id_parroquia"].values else f"ID: {x}"
+                    )
+                }
+            
+            # Renderizado común para cualquier tabla seleccionada
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic",  
@@ -509,8 +533,9 @@ if st.session_state.get('usuario_rol') == 1:
 
             # Si el usuario editó o eliminó registros, congelamos pantalla y pedimos confirmación
             if hubo_eliminacion or hubo_modificacion:
-                # Filtrar el dataframe congelado para asegurarse de que no mande filas fantasma vacías
-                col_critica = 'Nombre' if 'Nombre' in df_editado.columns else df_editado.columns[0]
+                # Determinamos una columna crítica para limpiar filas vacías fantasmas según la tabla
+                col_critica = 'descripcion' if nombre_tabla_db == 'vestuario_final' else (df_editado.columns[1] if len(df_editado.columns) > 1 else df_editado.columns[0])
+                
                 df_limpio = df_editado.dropna(subset=[col_critica])
                 df_limpio = df_limpio[df_limpio[col_critica].astype(str).str.strip() != ""]
                 
