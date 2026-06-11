@@ -151,6 +151,13 @@ st.markdown(f"""
         margin-top: 20px;
         margin-bottom: 15px;
     }}
+
+    /* INYECCIÓN DE ESTILOS AVANZADOS PARA DESACTIVAR EL CURSOR "+" EN FILAS VACÍAS Y CONTENEDORES */
+    button[data-testid="stDataEditor-AddRowOverlay"], 
+    .stDataEditor div[data-baseweb="table"] div, 
+    .stDataEditor canvas {{
+        cursor: default !important;
+    }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -441,7 +448,7 @@ if st.session_state.get('usuario_rol') == 1:
             st.session_state.nombre_tabla_anterior = nombre_tabla_db
             st.session_state.bloqueo_advertencia = False
  
-        # Mensajes de estado
+        # Mensajes de estado limpios
         if st.session_state.get("guardado_exitoso"):
             st.success("🎉 ¡Información sincronizada en la Base de Datos!")
             del st.session_state["guardado_exitoso"]
@@ -455,10 +462,9 @@ if st.session_state.get('usuario_rol') == 1:
             version_actual = st.session_state.editor_version
             key_dinamica = f"editor_{nombre_tabla_db}_{version_actual}"
             
-            # --- CONFIGURACIÓN DINÁMICA DE COLUMNAS (Mapeo de IDs a Descripciones) ---
+            # --- CONFIGURACIÓN DINÁMICA DE COLUMNAS ---
             config_columnas = {}
             
-            # CASO 1: TABLA PARTICIPANTES
             if nombre_tabla_db == "participantes":
                 df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
                 df_rol_map = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
@@ -487,7 +493,6 @@ if st.session_state.get('usuario_rol') == 1:
                     "teléfono": st.column_config.TextColumn("Teléfono")
                 }
             
-            # CASO 2: TABLA VESTUARIO
             elif nombre_tabla_db == "vestuario_final":
                 df_per_map = pd.read_sql("SELECT id_personaje, Descripción FROM personajes", db)
                 df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
@@ -496,7 +501,6 @@ if st.session_state.get('usuario_rol') == 1:
                     "id_vestuario": st.column_config.NumberColumn("ID", disabled=True),
                     "id_personaje": st.column_config.SelectboxColumn(
                         "Personaje / Papel",
-                        help="Selecciona el personaje asignado a este vestuario",
                         options=df_per_map["id_personaje"].tolist(),
                         format_func=lambda x: df_per_map[df_per_map["id_personaje"] == x]["Descripción"].iloc[0] if x in df_per_map["id_personaje"].values else f"ID: {x}"
                     ),
@@ -504,27 +508,12 @@ if st.session_state.get('usuario_rol') == 1:
                     "descripcion": st.column_config.TextColumn("Descripción Vestuario"),
                     "id_parroquia": st.column_config.SelectboxColumn(
                         "Parroquia Dueña",
-                        help="Parroquia a la que pertenece el vestuario",
                         options=df_par_map["id_parroquia"].tolist(),
                         format_func=lambda x: df_par_map[df_par_map["id_parroquia"] == x]["Nombre Parroquia"].iloc[0] if x in df_par_map["id_parroquia"].values else f"ID: {x}"
                     )
                 }
 
-            # --- INYECCIÓN CSS PARA ELIMINAR EL SÍMBOLO "+" FLOTANTE INTERMEDIO ---
-            st.markdown(
-                """
-                <style>
-                button[data-testid="stDataEditor-AddRowOverlay"] {
-                    display: none !important;
-                    pointer-events: none !important;
-                    visibility: hidden !important;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-            
-            # Renderizado común para cualquier tabla seleccionada
+            # Renderizado común del editor
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic",  
@@ -534,25 +523,17 @@ if st.session_state.get('usuario_rol') == 1:
                 key=key_dinamica
             )
 
-            # Inspección de cambios
             cambios = st.session_state.get(key_dinamica, {})
             hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
             hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
             hubo_adicion = len(cambios.get("added_rows", [])) > 0
 
-            # Si el usuario editó o eliminó registros, filtramos filas fantasma y abrimos la confirmación
             if hubo_eliminacion or hubo_modificacion:
-                # Determinamos una columna crítica según la tabla activa para limpiar filas vacías
-                if nombre_tabla_db == "participantes":
-                    col_critica = "Nombre"
-                elif nombre_tabla_db == "vestuario_final":
-                    col_critica = "descripcion"
-                elif nombre_tabla_db == "gastos":
-                    col_critica = "concepto"
-                elif nombre_tabla_db == "patrocinantes":
-                    col_critica = "negocio"
-                else:
-                    col_critica = df_editado.columns[1] if len(df_editado.columns) > 1 else df_editado.columns[0]
+                if nombre_tabla_db == "participantes": col_critica = "Nombre"
+                elif nombre_tabla_db == "vestuario_final": col_critica = "descripcion"
+                elif nombre_tabla_db == "gastos": col_critica = "concepto"
+                elif nombre_tabla_db == "patrocinantes": col_critica = "negocio"
+                else: col_critica = df_editado.columns[1] if len(df_editado.columns) > 1 else df_editado.columns[0]
                 
                 df_limpio = df_editado.dropna(subset=[col_critica])
                 df_limpio = df_limpio[df_limpio[col_critica].astype(str).str.strip() != ""]
@@ -564,7 +545,7 @@ if st.session_state.get('usuario_rol') == 1:
             elif hubo_adicion:
                 st.session_state.tabla_actual = df_editado.copy()
  
-        # --- ESCENARIO B: PANTALLA DE ADVERTENCIA PARA CONFIRMAR CAMBIOS ---
+        # --- ESCENARIO B: PANTALLA DE ADVERTENCIA (CORREGIDO Y OPTIMIZADO) ---
         else:
             st.markdown(f"""
                 <div style="background-color: #ffeaa7; padding: 20px; border-radius: 10px; border-left: 8px solid #e17055; margin-bottom: 20px;">
@@ -584,69 +565,64 @@ if st.session_state.get('usuario_rol') == 1:
                     if datos_nuevos is not None:
                         cur = db.cursor()
                         try:
-                            # 1. Desactivar restricciones temporalmente
+                            # 1. OPTIMIZACIÓN: Desactivar restricciones globales y abrir transacción única
                             cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
                             
-                            # 2. Identificar la columna ID
                             columna_id = datos_nuevos.columns[0]
                             
-                            # 3. Limpiar las "filas fantasma" finales mediante la columna crítica
-                            if nombre_tabla_db == "participantes":
-                                col_critica = "Nombre"
-                            elif nombre_tabla_db == "vestuario_final":
-                                col_critica = "descripcion"
-                            elif nombre_tabla_db == "gastos":
-                                col_critica = "concepto"
-                            elif nombre_tabla_db == "patrocinantes":
-                                col_critica = "negocio"
-                            else:
-                                col_critica = datos_nuevos.columns[1] if len(datos_nuevos.columns) > 1 else datos_nuevos.columns[0]
+                            if nombre_tabla_db == "participantes": col_critica = "Nombre"
+                            elif nombre_tabla_db == "vestuario_final": col_critica = "descripcion"
+                            elif nombre_tabla_db == "gastos": col_critica = "concepto"
+                            elif nombre_tabla_db == "patrocinantes": col_critica = "negocio"
+                            else: col_critica = datos_nuevos.columns[1] if len(datos_nuevos.columns) > 1 else datos_nuevos.columns[0]
                                 
                             datos_filtrados = datos_nuevos.dropna(subset=[col_critica])
                             datos_filtrados = datos_filtrados[datos_filtrados[col_critica].astype(str).str.strip() != ""]
                             
-                            # 4. OBTENER IDs ACTUALES DE LA BASE DE DATOS
+                            # 2. Obtener los IDs actuales de forma directa
                             cur.execute(f"SELECT `{columna_id}` FROM {nombre_tabla_db}")
                             ids_en_db = [row[0] for row in cur.fetchall()]
-                            
-                            # IDs que quedaron en el editor visual
                             ids_en_editor = datos_filtrados[columna_id].dropna().tolist()
                             
-                            # 5. ELIMINACIÓN QUIRÚRGICA: Si el ID estaba en la DB pero ya no está en el editor, SE BORRA
-                            for id_db in ids_en_db:
-                                if id_db not in ids_en_editor:
-                                    cur.execute(f"DELETE FROM {nombre_tabla_db} WHERE `{columna_id}` = %s", (id_db,))
+                            # 3. Borrado quirúrgico rápido
+                            ids_a_borrar = [id_db for id_db in ids_en_db if id_db not in ids_en_editor]
+                            if ids_a_borrar:
+                                format_strings = ','.join(['%s'] * len(ids_a_borrar))
+                                cur.execute(f"DELETE FROM {nombre_tabla_db} WHERE `{columna_id}` IN ({format_strings})", tuple(ids_a_borrar))
                             
-                            # 6. GUARDAR O ACTUALIZAR LAS FILAS QUE SÍ QUEDARON
+                            # 4. SÚPER OPTIMIZACIÓN: Inserción y Actualización MASIVA mediante `executemany`
                             cols = ", ".join([f"`{c}`" for c in datos_filtrados.columns])
                             placeholders = ", ".join(["%s"] * len(datos_filtrados.columns))
-                            
-                            # Usamos ON DUPLICATE KEY UPDATE para sincronizaciones
                             updates = ", ".join([f"`{c}` = VALUES(`{c}`)" for c in datos_filtrados.columns if c != columna_id])
                             sql_save = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
                             
+                            # Mapeamos los valores de todo el lote
+                            lote_valores = []
                             for _, row in datos_filtrados.iterrows():
-                                valores = tuple(None if pd.isna(v) else v for v in row)
-                                cur.execute(sql_save, valores)
+                                valores_fila = tuple(None if pd.isna(v) else v for v in row)
+                                lote_valores.append(valores_fila)
                             
-                            # 7. Reactivar restricciones de seguridad
+                            if lote_valores:
+                                cur.executemany(sql_save, lote_valores)
+                            
+                            # 5. Reactivar restricciones y asegurar el COMMIT masivo
                             cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
                             db.commit()
                             
-                            # Sincronizar estados de Streamlit
+                            # 6. LIMPIEZA INMEDIATA DE ESTADOS (Previene el bucle del cartel)
                             st.session_state.tabla_actual = datos_filtrados.copy()
                             st.session_state.backup_data = datos_filtrados.copy()
+                            if "df_congelado_cambios" in st.session_state:
+                                del st.session_state["df_congelado_cambios"]
+                                
                             st.session_state.editor_version += 1
-                            
                             st.session_state.guardado_exitoso = True
                             st.session_state.bloqueo_advertencia = False
                             
                         except Exception as err:
                             db.rollback()
-                            try:
-                                cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                            except:
-                                pass
+                            try: cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                            except: pass
                             st.error(f"❌ Error crítico al procesar la actualización: {err}")
                         finally:
                             cur.close()
@@ -656,6 +632,8 @@ if st.session_state.get('usuario_rol') == 1:
             with col_no:
                 if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
                     st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                    if "df_congelado_cambios" in st.session_state:
+                        del st.session_state["df_congelado_cambios"]
                     st.session_state.editor_version += 1
                     st.session_state.cambios_revertidos = True
                     st.session_state.bloqueo_advertencia = False
