@@ -261,34 +261,152 @@ with tabs[0]:
     st.metric("Total Personas", len(df_f))
     st.dataframe(df_f, use_container_width=True, hide_index=True)
 
-# --- TAB 1: ECONOMÍA ---
 with tabs[1]:
+
     res_in = pd.read_sql("SELECT SUM(abono) as total FROM pago_patrocinantes", db)
+
     total_in = res_in['total'].iloc[0] or 0
+
     res_out = pd.read_sql("SELECT SUM(monto) as total FROM gastos", db)
+
     total_out = res_out['total'].iloc[0] or 0
+
     
+
     c1, c2, c3 = st.columns(3)
-    c1.metric("Ingresos Total", f"{total_in} COP")
-    c2.metric("Gastos Total", f"{total_out} COP")
-    c3.metric("Saldo Neto", f"{total_in - total_out} COP")
+
+    c1.metric("Ingresos", f"{total_in} COP")
+
+    c2.metric("Gastos", f"{total_out} COP")
+
+    c3.metric("Saldo", f"{total_in - total_out} COP")
+
     st.divider()
 
+    
+
+
+
     try:
+
         q_estilo = """
-            SELECT p.negocio AS Patrocinante, p.`monto a pagar` AS Pactado, 
-                   IFNULL(SUM(pg.abono), 0) AS Abonado, (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
-            FROM patrocinantes p LEFT JOIN pago_patrocinantes pg ON p.id_patrocinante = pg.id_patrocinante
+
+            SELECT 
+
+                p.negocio AS Patrocinante,
+
+                p.`monto a pagar` AS Pactado, 
+
+                IFNULL(SUM(pg.abono), 0) AS Abonado,
+
+                (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
+
+            FROM patrocinantes p
+
+            LEFT JOIN pago_patrocinantes pg ON p.id_patrocinante = pg.id_patrocinante
+
             GROUP BY p.id_patrocinante
+
         """
+
         df_pagos = pd.read_sql(q_estilo, db)
-        filtro = st.selectbox("🔍 Estatus de pago:", ["Todos", "Sin abonos", "Abonos", "Cancelado"])
-        if filtro == "Sin abonos": df_pagos = df_pagos[df_pagos['Abonado'] == 0]
-        elif filtro == "Abonos": df_pagos = df_pagos[(df_pagos['Abonado'] > 0) & (df_pagos['Pendiente'] > 0)]
-        elif filtro == "Cancelado": df_pagos = df_pagos[df_pagos['Pendiente'] <= 0]
-        st.dataframe(df_pagos, use_container_width=True, hide_index=True)
+
+
+
+    
+
+        filtro = st.selectbox(
+
+            "🔍 Filtrar por estatus de pago:",
+
+            ["Todos", "Sin abonos", "Abonos", "Cancelado"]
+
+        )
+
+
+
+      
+
+        if filtro == "Sin abonos":
+
+            df_pagos = df_pagos[df_pagos['Abonado'] == 0]
+
+        elif filtro == "Abonos":
+
+            df_pagos = df_pagos[(df_pagos['Abonado'] > 0) & (df_pagos['Pendiente'] > 0)]
+
+        elif filtro == "Cancelado":
+
+            df_pagos = df_pagos[df_pagos['Pendiente'] <= 0]
+
+
+
+        
+
+        def resaltar_estatus(row):
+
+            if row['Abonado'] == 0:
+
+                return ['background-color: #ff7c70; color: black'] * len(row)
+
+            elif row['Pendiente'] <= 0:
+
+                return ['background-color: #258d19; color: black'] * len(row) 
+
+            else:
+
+                return ['background-color: #fcf75e; color: black'] * len(row) 
+
+
+
+        st.subheader(f"📋 Detalle: {filtro}")
+
+        
+
+ 
+
+        st.dataframe(
+
+            df_pagos.style.apply(resaltar_estatus, axis=1).format({
+
+                "Pactado": "{:.2f} COP",
+
+                "Abonado": "{:.2f} COP",
+
+                "Pendiente": "{:.2f} COP"
+
+            }), 
+
+            use_container_width=True,
+
+            hide_index=True
+
+        )
+
+
+
     except Exception as e:
-        st.error(f"Error: {e}")
+
+        st.error(f"Error visualizando los colores: {e}")
+
+
+
+     # --- Dentro de with tabs[1]: ---
+    st.subheader("📊 Detalle de Egresos")
+
+try:
+    # Consultamos todos los gastos registrados
+         df_gastos_tabla = pd.read_sql("SELECT `fecha del gasto` as Fecha, concepto as Concepto, monto as `Monto (COP)` FROM gastos ORDER BY `fecha del gasto` DESC", db)
+    
+         if not df_gastos_tabla.empty:
+        # Mostramos la tabla con un formato limpio
+             st.dataframe(df_gastos_tabla, use_container_width=True, hide_index=True)
+         else:
+             st.info("Aún no hay gastos registrados.")
+        
+except Exception as e:
+         st.error(f"No se pudo cargar la tabla de gastos: {e}")
+
 
 # --- TAB 2: INVENTARIO ---
 with tabs[2]:
