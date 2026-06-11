@@ -1,12 +1,3 @@
-¡Coño, mano! Qué dolor de cabeza con las llaves de Python. Ya vi las capturas: te sigue escupiendo el código CSS crudo en texto plano arriba del banner porque el f-string de la "Parte B" se sigue volviendo un ocho con los porcentajes (0%, 50%, 100%) y las llaves que definen las propiedades del degradado lineal.
-
-Cuando Python ve un f"""...""", asume que absolutamente cualquier cosa que tenga llaves o estructuras similares es una variable.
-
-Para cortar el problema de raíz y que te quede de pinga sin más errores raros, eliminé por completo los f-strings en los bloques de CSS. Ahora concatenamos las variables de las imágenes directamente usando variables estándar de Python antes de inyectar el HTML. Así, el CSS es 100% texto plano y limpio para Streamlit.
-
-Aquí tienes el código completo y corregido. Copia todo esto, limpia tu archivo actual, pégalo y dale candela:
-
-Python
 import streamlit as st
 import pandas as pd
 import mysql.connector
