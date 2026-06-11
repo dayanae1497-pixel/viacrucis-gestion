@@ -1,3 +1,10 @@
+¡Tranquila, Dayana! No te me estreses, vamos a acomodar este código completo de una vez por todas para que te quede de pinga y no vuelvas a ver ese bloque feo de CSS arriba.
+
+Apliqué la Opción 2 que te comenté: separé por completo el CSS que usa tus variables dinámicas de fondo ({css_fondo_sistema} y {css_banner_header}) del resto de los estilos estáticos de las tablas, inputs y alertas. Así el intérprete de Python no se confunde con las llaves {} de las clases convencionales y te renderiza la interfaz limpia, profesional y con el botón de PDF activo para todo el mundo en el menú lateral.
+
+Aquí tienes el archivo completo listo para copiar, pegar y ejecutar:
+
+Python
 import streamlit as st
 import pandas as pd
 import mysql.connector
@@ -5,9 +12,9 @@ from fpdf import FPDF
 from datetime import datetime
 import base64
 import os
-from io import BytesIO  # <-- CRUCIAL: Para manejar el PDF en memoria sin tumbar el script
+from io import BytesIO  # <-- Manejo eficiente del PDF en memoria RAM
 
-# 1. CONFIGURACIÓN DE PÁGINA (Debe ser lo primero)
+# 1. CONFIGURACIÓN DE PÁGINA (Debe ser estrictamente lo primero)
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
 # 2. INICIALIZACIÓN SEGURA DE SESIONES (Previene AttributeErrors)
@@ -31,7 +38,7 @@ def obtener_base64_imagen(nombre_archivo):
             return base64.b64encode(image_file.read()).decode()
     return ""
 
-# Procesamos ambas imágenes
+# Procesamos ambas imágenes de diseño
 img_fondo_64 = obtener_base64_imagen("image.png")
 img_banner_64 = obtener_base64_imagen("Presente.png")
 
@@ -58,15 +65,90 @@ if img_banner_64:
 else:
     css_banner_header = "background-color: #150324;"
 
-# --- CONTROLADORES DE ESTILO CSS CORREGIDOS ---
-st.markdown(f"""
+
+# =========================================================================
+# CONTROLADORES DE ESTILO CSS (Sintaxis separada de manera segura)
+# =========================================================================
+
+# PARTE A: Estilos fijos sin variables de Python (Llaves simples normales, no se rompe)
+st.markdown("""
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <style>
 @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
 
-html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {{
+html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {
     font-family: 'League Spartan', sans-serif !important;
-}}
+}
+.header-titulo {
+    color: #ffffff !important;
+    font-size: 52px !important;
+    font-weight: 900 !important;
+    line-height: 1.1;
+    margin: 0 !important;
+    letter-spacing: -1px;
+    text-shadow: 3px 3px 10px rgba(0, 0, 0, 0.85);
+}
+.banner-acceso {
+    background-color: #2b203a;
+    padding: 15px;
+    text-align: center;
+    border-radius: 6px;
+    margin-top: 15px;
+    margin-bottom: 30px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
+}
+.texto-acceso {
+    color: #e5b82b !important;
+    font-size: 44px !important;
+    font-weight: 900 !important;
+    margin: 0 !important;
+}
+.stTextInput > div > div > input {
+    background-color: #ffffff !important;
+    color: #150324 !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    border-radius: 35px !important;
+    padding: 14px 25px !important;
+}
+.stTabs [data-baseweb="tab-list"] {
+    background-color: #312d38 !important;
+    padding: 10px 20px !important;
+    border-radius: 6px !important;
+}
+.stTabs [data-baseweb="tab"] {
+    color: #e5b82b !important;
+    font-weight: 800 !important;
+    font-size: 19px !important;
+}
+.stTabs [aria-selected="true"] {
+    background-color: #1c0933 !important;
+    border-bottom: 4px solid #e5b82b !important;
+}
+div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {
+    color: #ffffff !important;
+}
+.aviso-seguridad-box {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-radius: 12px;
+    padding: 25px;
+    border-top: 15px solid #e5b82b;
+    box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
+    margin-top: 20px;
+    margin-bottom: 15px;
+}
+button[data-testid="stDataEditor-AddRowOverlay"],
+.stDataEditor div[data-baseweb="table"] div,
+.stDataEditor canvas {
+    cursor: default !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# PARTE B: Estilos dinámicos inyectados con f-string (Únicamente lo que usa variables)
+st.markdown(f"""
+<style>
 .stApp {{
     {css_fondo_sistema}
 }}
@@ -79,74 +161,11 @@ html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {{
     border-bottom: 4px solid #b58c24;
     box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.5);
 }}
-.header-titulo {{
-    color: #ffffff !important;
-    font-size: 52px !important;
-    font-weight: 900 !important;
-    line-height: 1.1;
-    margin: 0 !important;
-    letter-spacing: -1px;
-    text-shadow: 3px 3px 10px rgba(0, 0, 0, 0.85);
-}}
-.banner-acceso {{
-    background-color: #2b203a;
-    padding: 15px;
-    text-align: center;
-    border-radius: 6px;
-    margin-top: 15px;
-    margin-bottom: 30px;
-    box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
-}}
-.texto-acceso {{
-    color: #e5b82b !important;
-    font-size: 44px !important;
-    font-weight: 900 !important;
-    margin: 0 !important;
-}}
-.stTextInput > div > div > input {{
-    background-color: #ffffff !important;
-    color: #150324 !important;
-    font-size: 18px !important;
-    font-weight: 700 !important;
-    border-radius: 35px !important;
-    padding: 14px 25px !important;
-}}
-.stTabs [data-baseweb="tab-list"] {{
-    background-color: #312d38 !important;
-    padding: 10px 20px !important;
-    border-radius: 6px !important;
-}}
-.stTabs [data-baseweb="tab"] {{
-    color: #e5b82b !important;
-    font-weight: 800 !important;
-    font-size: 19px !important;
-}}
-.stTabs [aria-selected="true"] {{
-    background-color: #1c0933 !important;
-    border-bottom: 4px solid #e5b82b !important;
-}}
-div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {{
-    color: #ffffff !important;
-}}
-.aviso-seguridad-box {{
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    border-radius: 12px;
-    padding: 25px;
-    border-top: 15px solid #e5b82b;
-    box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
-    margin-top: 20px;
-    margin-bottom: 15px;
-}}
-button[data-testid="stDataEditor-AddRowOverlay"],
-.stDataEditor div[data-baseweb="table"] div,
-.stDataEditor canvas {{
-    cursor: default !important;
-}}
 </style>
 """, unsafe_allow_html=True)
 
-# ENCABEZADO DEL SISTEMA RENDERIZADO
+
+# RENDERIZADO DEL ENCABEZADO PRINCIPAL
 st.markdown("""
 <div class="header-sistema">
 <h1 class="header-titulo">Sistema de gestión<br>de Patrimonio</h1>
@@ -172,22 +191,22 @@ def cargar_tabla_optimizado(nombre_tabla):
         conn_cache.close()
     return df
 
-# --- NUEVA FUNCIÓN PARA GENERAR EL REPORTE EN PDF ---
+# --- FUNCIÓN EXPORTADORA DE REPORTES PDF ---
 def generar_pdf_reporte(db_conn):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     pdf.set_text_color(0, 0, 0)
     
-    # Encabezado del PDF
+    # Encabezado del documento PDF
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 10, "VIACRUCIS 2026 - REPORTE GENERAL DE PATRIMONIO", ln=True, align='C')
     pdf.set_font("Arial", 'I', 10)
-    pdf.cell(0, 10, f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", ln=True, align='C')
+    pdf.cell(0, 10, f"Fecha de emision: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", ln=True, align='C')
     pdf.ln(5)
     
-    # 1. Sección: Resumen de Economía
+    # Sección 1: Finanzas generales
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "1. Resumen Financiero (Economía)", ln=True)
+    pdf.cell(0, 10, "1. Resumen Financiero (Economia)", ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(3)
     
@@ -204,19 +223,19 @@ def generar_pdf_reporte(db_conn):
     pdf.cell(60, 8, f"Saldo Neto Disponible: {saldo:,.2f} COP", ln=True)
     pdf.ln(6)
     
-    # 2. Sección: Resumen de Inventario de Utilería
+    # Sección 2: Inventario Físico
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "2. Inventario General de Utilería", ln=True)
+    pdf.cell(0, 10, "2. Inventario General de Utileria", ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(3)
     
     df_utileria = pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db_conn)
     
-    # Tabla de Utilería
+    # Construcción de la tabla FPDF
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(50, 7, "Objeto", border=1)
     pdf.cell(25, 7, "Cantidad", border=1, align='C')
-    pdf.cell(115, 7, "Descripción", border=1)
+    pdf.cell(115, 7, "Descripcion", border=1)
     pdf.ln()
     
     pdf.set_font("Arial", '', 9)
@@ -226,10 +245,9 @@ def generar_pdf_reporte(db_conn):
         pdf.cell(115, 6, str(fila['descripcion']), border=1)
         pdf.ln()
         
-    # Retornar los bytes del PDF estructurado
     return pdf.output(dest='S').encode('latin-1')
 
-# --- CONTROL DE ACCESO ---
+# --- FILTRO Y PROTECCIÓN DE ACCESO ---
 if not st.session_state['autenticado']:
     st.markdown("""
     <div class="banner-acceso">
@@ -260,16 +278,15 @@ if not st.session_state['autenticado']:
                     st.error(" ❌ Credenciales incorrectas.")
                     st.stop()
 
-# --- INTERFAZ PRINCIPAL (SÓLO SI ESTÁ AUTENTICADO) ---
+# --- FLUJO DE INTERFAZ DEL OPERADOR AUTENTICADO ---
 db = conectar()
 
-# Configuración del Menú Lateral (Sidebar)
+# Panel de control lateral izquierdo (Sidebar)
 st.sidebar.markdown(f" 👤 **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
-
 st.sidebar.markdown("---")
 st.sidebar.header(" 🖨️ Reportes")
 
-# NUEVO BOTÓN EXPORTADOR PARA CUALQUIER USUARIO LOGUEADO
+# Generación automática del PDF disponible para cualquier rol en el menú lateral
 try:
     pdf_data = generar_pdf_reporte(db)
     st.sidebar.download_button(
@@ -287,7 +304,7 @@ if st.sidebar.button("Cerrar Sesión", use_container_width=True):
     st.session_state['autenticado'] = False
     st.rerun()
 
-# Definición de pestañas normales del flujo principal
+# Definición de pestañas principales de visualización
 nombres_tabs = ["Personal 👥 ", "Economía 💵 ", "Inventario 📦 "]
 if st.session_state['usuario_rol'] == 1:
     nombres_tabs.append("Data 📝 ")
@@ -400,7 +417,7 @@ with tabs[2]:
         st.subheader(" 🛠 ️ Utilería")
         st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
 
-# --- TAB 3: DATA (PANEL CRÍTICO REESTRUCTURADO) ---
+# --- TAB 3: DATA (PANEL ADMINISTRADOR EDICIÓN MAESTRA) ---
 if st.session_state.get('usuario_rol') == 1:
     with tabs[3]:
         st.header(" 📝 Registro de Datos")
@@ -686,6 +703,6 @@ if st.session_state.get('usuario_rol') == 1:
                     st.session_state.bloqueo_advertencia = False
                     st.rerun()
 
-# Cierre global de conexiones seguras
+# Cierre ordenado de comunicaciones DB
 if 'db' in locals() and db.is_connected():
     db.close()
