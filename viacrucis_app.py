@@ -38,7 +38,7 @@ img_banner_64 = obtener_base64_imagen("Presente.png")
 if img_fondo_64:
     css_fondo_sistema = f"""
         background-image: linear-gradient(180deg, rgba(50, 19, 84, 0.85) 0%, rgba(28, 9, 51, 0.92) 50%, rgba(13, 2, 26, 0.98) 100%), 
-        url("data:image/png;base64,{img_fondo_64}");
+                          url("data:image/png;base64,{img_fondo_64}");
         background-size: cover;
         background-attachment: fixed;
         background-position: center;
@@ -50,7 +50,7 @@ else:
 if img_banner_64:
     css_banner_header = f"""
         background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)), 
-        url("data:image/png;base64,{img_banner_64}");
+                    url("data:image/png;base64,{img_banner_64}");
         background-size: cover;
         background-position: center;
     """
@@ -151,15 +151,6 @@ st.markdown(f"""
         margin-top: 20px;
         margin-bottom: 15px;
     }}
-
-    /* =========================================================
-       🔥 SOLUCIÓN OCULTAR BOTÓN "+" MANTENIENDO EL BORRADO 
-       ========================================================= */
-    /* Oculta la última fila fantasma de agregación */
-    [data-testid="stDataEditor"] div[role="row"]:last-child button[title="Add row"],
-    [data-testid="stDataEditor"] button[title="Add row"] {
-        display: none !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -468,7 +459,6 @@ if st.session_state.get('usuario_rol') == 1:
             version_actual = st.session_state.editor_version
             key_dinamica = f"editor_{nombre_tabla_db}_{version_actual}"
             
-            # Mantenemos num_rows="dynamic" para permitir la eliminación (CRUD completo)
             df_editado = st.data_editor(
                 st.session_state.tabla_actual, 
                 num_rows="dynamic", 
@@ -477,16 +467,21 @@ if st.session_state.get('usuario_rol') == 1:
                 key=key_dinamica
             )
  
-            # Inspección de cambios en el diccionario de Streamlit
+            # Inspección de cambios
             cambios = st.session_state.get(key_dinamica, {})
             hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
             hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
+            hubo_adicion = len(cambios.get("added_rows", [])) > 0
  
-            # Si el usuario editó o eliminó registros legítimos, congelamos pantalla y pedimos confirmación
+            # Si el usuario editó o eliminó registros, congelamos pantalla y pedimos confirmación
             if hubo_eliminacion or hubo_modificacion:
                 st.session_state.df_congelado_cambios = df_editado.copy()
                 st.session_state.bloqueo_advertencia = True
                 st.rerun()
+                
+            # Si sólo está agregando renglones en blanco dentro del editor, mantenemos en memoria
+            elif hubo_adicion:
+                st.session_state.tabla_actual = df_editado.copy()
  
         # --- ESCENARIO B: PANTALLA DE ADVERTENCIA PARA CONFIRMAR CAMBIOS ---
         else:
@@ -511,10 +506,10 @@ if st.session_state.get('usuario_rol') == 1:
                             # 1. Desactivar restricciones temporalmente
                             cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
                             
-                            # 2. Identificar la columna ID 
+                            # 2. Identificar la columna ID (suele ser la primera, ej: 'id_participante' o 'id')
                             columna_id = datos_nuevos.columns[0]
                             
-                            # 3. Limpiar celdas vacías
+                            # 3. Limpiar las "filas fantasma" del editor que no tengan Nombre válido
                             col_critica = 'Nombre' if 'Nombre' in datos_nuevos.columns else datos_nuevos.columns[0]
                             datos_filtrados = datos_nuevos.dropna(subset=[col_critica])
                             datos_filtrados = datos_filtrados[datos_filtrados[col_critica].astype(str).str.strip() != ""]
@@ -535,6 +530,7 @@ if st.session_state.get('usuario_rol') == 1:
                             cols = ", ".join([f"`{c}`" for c in datos_filtrados.columns])
                             placeholders = ", ".join(["%s"] * len(datos_filtrados.columns))
                             
+                            # Usamos ON DUPLICATE KEY UPDATE para que si el ID ya existe, actualice los datos, y si es nuevo, lo inserte
                             updates = ", ".join([f"`{c}` = VALUES(`{c}`)" for c in datos_filtrados.columns if c != columna_id])
                             sql_save = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
                             
