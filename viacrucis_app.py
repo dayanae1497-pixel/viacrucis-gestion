@@ -232,7 +232,104 @@ if st.session_state['usuario_rol'] == 1:
 
 tabs = st.tabs(nombres_tabs)
 db = conectar()
+def generar_reporte_final(df_p, df_v, df_g, df_pat):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # ---------------------------------------------------------
+    # COLORES DE MARCA (Inspirados en tu Mockup)
+    # ---------------------------------------------------------
+    c_morado_principal = (81, 40, 136)   # #512888
+    c_morado_claro = (188, 160, 220)    # #bca0dc
+    c_dorado = (184, 160, 117)          # #b8a0fd
+    c_gris_cabecera = (240, 230, 210)   # Fondo sutil para tablas
+    
+    # ---------------------------------------------------------
+    # SECCIÓN 1: LISTADO DE PARTICIPANTES
+    # ---------------------------------------------------------
+    pdf.add_page()
+    
+    # Encabezado Estilizado
+    pdf.set_fill_color(*c_morado_principal)
+    pdf.rect(0, 0, 210, 35, 'F')
+    
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(0, 12, 'VIACRUCIS VIVIENTE 2026', ln=1, align='C')
+    pdf.set_font('Arial', 'I', 10)
+    pdf.cell(0, 5, 'Reporte Oficial de Personal y Participantes', ln=1, align='C')
+    pdf.ln(15)
+    
+    # Título del Módulo
+    pdf.set_text_color(43, 43, 43)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, '👥 LISTADO DE PARTICIPANTES', ln=1)
+    pdf.ln(3)
+    
+    # Cabecera de la Tabla
+    pdf.set_fill_color(*c_morado_principal)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(65, 8, ' Nombre Completo', 1, 0, 'L', 1)
+    pdf.cell(40, 8, ' Teléfono', 1, 0, 'C', 1)
+    pdf.cell(85, 8, ' Parroquia', 1, 1, 'L', 1) # Ya no es un ID
+    
+    # Filas de la Tabla
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font('Arial', '', 10)
+    
+    for _, row in df_p.iterrows():
+        nombre = f"{row.get('Nombre', '')} {row.get('Apellido', '')}".strip()
+        # Buscamos 'telefono' sin tilde o 'teléfono' según tu base de datos
+        telefono = str(row.get('teléfono', row.get('telefono', 'S/N')))
+        # ¡OJO! Aquí usamos 'nombre_parroquia' que viene del JOIN
+        parroquia = str(row.get('nombre_parroquia', 'Sin asignar'))
+        
+        pdf.cell(65, 7, f" {nombre}", 1, 0, 'L')
+        pdf.cell(40, 7, f" {telefono}", 1, 0, 'C')
+        pdf.cell(85, 7, f" {parroquia}", 1, 1, 'L')
+        
+    # ---------------------------------------------------------
+    # SECCIÓN 2: CONTROL DE VESTUARIO
+    # ---------------------------------------------------------
+    pdf.add_page()
+    
+    # Encabezado de página interna
+    pdf.set_fill_color(*c_morado_principal)
+    pdf.rect(0, 0, 210, 15, 'F')
+    pdf.ln(10)
+    
+    pdf.set_text_color(43, 43, 43)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, '👕 CONTROL DE VESTUARIO', ln=1)
+    pdf.ln(3)
+    
+    # Cabecera de Tabla Vestuario
+    pdf.set_fill_color(*c_morado_principal)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(50, 8, ' Actor / Personaje', 1, 0, 'L', 1) # Nombre real
+    pdf.cell(20, 8, ' Piezas', 1, 0, 'C', 1)
+    pdf.cell(75, 8, ' Descripción del Vestuario', 1, 0, 'L', 1)
+    pdf.cell(45, 8, ' Parroquia Origen', 1, 1, 'L', 1)
+    
+    # Filas de Vestuario
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font('Arial', '', 9)
+    
+    for _, row in df_v.iterrows():
+        # Usamos el alias 'nombre_actor' generado por el query JOIN
+        actor = str(row.get('nombre_actor', 'Sin asignar'))
+        piezas = str(row.get('Piezas', row.get('piezas', '0')))
+        descripcion = str(row.get('Descripción', row.get('descripcion', 'Sin detalle')))
+        parroquia_v = str(row.get('nombre_parroquia', 'Sin asignar'))
+        
+        pdf.cell(50, 7, f" {actor}", 1, 0, 'L')
+        pdf.cell(20, 7, f" {piezas}", 1, 0, 'C')
+        pdf.cell(75, 7, f" {descripcion}", 1, 0, 'L')
+        pdf.cell(45, 7, f" {parroquia_v}", 1, 1, 'L')
 
+    return pdf.output(dest='S')
 # --- TAB 0: PERSONAL ---
 with tabs[0]:
     st.markdown("<h2 style='color:#e5b82b;'>Personal 👥</h2>", unsafe_allow_html=True)
@@ -697,7 +794,43 @@ if st.session_state.get('usuario_rol') == 1:
                     st.session_state.cambios_revertidos = True
                     st.session_state.bloqueo_advertencia = False
                     st.rerun()
-
+            if st.button("🚀 Preparar Reporte Maestro"):
+    try:
+        with st.spinner("Compilando toda la información con diseño premium..."):
+            
+            # 1. Traemos participantes junto con el nombre real de su parroquia
+            q_p = """
+                SELECT p.*, pa.nombre_parroquia 
+                FROM participantes p 
+                LEFT JOIN parroquias pa ON p.id_parroquia = pa.id_parroquia
+            """
+            df_p = pd.read_sql(q_p, db)
+            
+            # 2. Traemos vestuario junto con el Nombre del Actor y el Nombre de la Parroquia
+            q_v = """
+                SELECT v.*, CONCAT(p.Nombre, ' ', p.Apellido) AS nombre_actor, pa.nombre_parroquia 
+                FROM vestuario_final v
+                LEFT JOIN participantes p ON v.id_participante = p.id_participante
+                LEFT JOIN parroquias pa ON p.id_parroquia = pa.id_parroquia
+            """
+            df_v = pd.read_sql(q_v, db)
+            
+            # 3. Gastos y Patrocinantes se quedan igual con su SELECT normal
+            df_g = pd.read_sql("SELECT * FROM gastos", db)
+            df_pat = pd.read_sql("SELECT * FROM patrocinantes", db)
+            
+            # Generamos el binario del PDF
+            pdf_raw = generar_reporte_final(df_p, df_v, df_g, df_pat)
+            
+            st.success("✅ ¡Reporte visual generado con éxito!")
+            st.download_button(
+                label="⬇️ Descargar Reporte PDF",
+                data=bytes(pdf_raw), # Casteo seguro a bytes para evitar bugs en Streamlit Cloud
+                file_name=f"Reporte_Viacrucis_{datetime.now().strftime('%d_%m')}.pdf",
+                mime="application/pdf"
+            )
+    except Exception as e:
+        st.error(f"❌ Error al compilar el reporte visual: {e}")        
 # ==========================================
 # SECTION 3: CIERRE DE CONEXIÓN GLOBAL
 # ==========================================
