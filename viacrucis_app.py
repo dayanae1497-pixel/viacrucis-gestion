@@ -38,7 +38,7 @@ img_banner_64 = obtener_base64_imagen("Presente.png")
 if img_fondo_64:
     css_fondo_sistema = f"""
         background-image: linear-gradient(180deg, rgba(50, 19, 84, 0.85) 0%, rgba(28, 9, 51, 0.92) 50%, rgba(13, 2, 26, 0.98) 100%), 
-                          url("data:image/png;base64,{img_fondo_64}");
+            url("data:image/png;base64,{img_fondo_64}");
         background-size: cover;
         background-attachment: fixed;
         background-position: center;
@@ -50,7 +50,7 @@ else:
 if img_banner_64:
     css_banner_header = f"""
         background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)), 
-                    url("data:image/png;base64,{img_banner_64}");
+            url("data:image/png;base64,{img_banner_64}");
         background-size: cover;
         background-position: center;
     """
@@ -60,6 +60,8 @@ else:
 
 # --- CONTROLADORES DE ESTILO CSS CORREGIDOS ---
 st.markdown(f"""
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    
     <style>
     @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
     
@@ -342,7 +344,7 @@ if st.session_state.get('usuario_rol') == 1:
                     try:
                         cur = db.cursor()
                         sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, `fecha de abono`) VALUES (%s, %s, %s)"
-                        valores = (int(p_id), float(abo), fecha_pago)
+                        valores = (int(p_id) if p_id else None, float(abo), fecha_pago)
                         cur.execute(sql, valores)
                         db.commit()
                         cur.close()
@@ -394,7 +396,10 @@ if st.session_state.get('usuario_rol') == 1:
                         cur = db.cursor()
                         sql = """INSERT INTO participantes (Nombre, Apellido, Edad, teléfono, id_comision, id_parroquia, id_rol) 
                                  VALUES (%s, %s, %s, %s, %s, %s, %s)"""
-                        cur.execute(sql, (nom, ape, eda, telf_p, com_id, par_id, rol_id))
+                        cur.execute(sql, (nom, ape, int(eda) if eda else 0, telf_p, 
+                                          int(com_id) if com_id else None, 
+                                          int(par_id) if par_id else None, 
+                                          int(rol_id) if rol_id else None))
                         db.commit()
                         cur.close()
                         st.success(f"✅ {nom} {ape} ha sido registrado.")
@@ -417,7 +422,7 @@ if st.session_state.get('usuario_rol') == 1:
                     if st.form_submit_button("Guardar Personaje"):
                         cur = db.cursor()
                         sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
-                        cur.execute(sql, (nombre_papel, int(p_id)))
+                        cur.execute(sql, (nombre_papel, int(p_id) if p_id else None))
                         db.commit()
                         cur.close()
                         st.success(f"✅ ¡{nombre_papel} asignado correctamente!")
