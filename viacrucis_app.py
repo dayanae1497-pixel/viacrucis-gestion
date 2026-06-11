@@ -172,7 +172,7 @@ st.markdown(
     }
     </style>
     """,
-    unsafe_allow_index=True
+    unsafe_allow_html=True
 )
 
 def conectar():
