@@ -350,7 +350,7 @@ def generar_pdf_reporte(db_conn):
     pdf.set_text_color(162, 155, 254)
     pdf.cell(60, 4, clean_txt("TOTAL GASTOS"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(200, 5, clean_txt(f"{total_out:,.2f} COP"), align="C")
+    pdf.cell(180, 5, clean_txt(f"{total_out:,.2f} COP"), align="C")
 
     # Caja 3: Saldo Neto (Borde Dorado)
     pdf.set_fill_color(43, 32, 58)
