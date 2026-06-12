@@ -154,7 +154,7 @@ st.markdown(f"""
     background-size: cover;
     background-attachment: fixed;
     background-position: center;
-}
+}}
 .header-sistema {{
     background: linear-gradient(rgba(21, 3, 36, 0.2), rgba(21, 3, 36, 0.4)), url('data:image/png;base64,{img_banner_64}');
     background-size: cover;
@@ -165,7 +165,7 @@ st.markdown(f"""
     margin-bottom: 10px;
     border-bottom: 4px solid #b58c24;
     box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.5);
-}
+}}
 </style>
 """, unsafe_allow_html=True)
 
