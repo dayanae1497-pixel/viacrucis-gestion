@@ -58,15 +58,31 @@ else:
     css_banner_header = "background-color: #150324;"
 
 
-# --- CONTROLADORES DE ESTILO CSS CORREGIDOS ---
+# --- CONTROLADORES DE ESTILO CSS CORREGIDOS (Aquí acomodamos el detalle de las flechas) ---
 st.markdown(f"""
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     
     <style>
     @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
     
-    html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, span, label {{
+    /* CORRECCIÓN DE FLECHAS: Excluimos las etiquetas span generales para que Streamlit use sus fuentes nativas */
+    html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, label {{
         font-family: 'League Spartan', sans-serif !important;
+    }}
+
+    /* Clase específica para cuando SÍ queramos usar íconos de Google sin romper los selectores */
+    .icono-custom {{
+        font-family: 'Material Symbols Outlined' !important;
+        font-weight: normal;
+        font-style: normal;
+        font-size: 24px;
+        line-height: 1;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        -webkit-font-smoothing: antialiased;
+        vertical-align: middle;
     }}
 
     /* Fondo general del sistema con la imagen general */
@@ -154,7 +170,7 @@ st.markdown(f"""
         margin-bottom: 15px;
     }}
 
-    /* INYECCIÓN DE ESTILOS AVANZADOS PARA DESACTIVAR EL CURSOR "+" EN FILAS VACÍAS Y CONTENEDORES */
+    /* INYECCIÓN DE ESTILOS AVANZADOS */
     button[data-testid="stDataEditor-AddRowOverlay"], 
     .stDataEditor div[data-baseweb="table"] div, 
     .stDataEditor canvas {{
