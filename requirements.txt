@@ -2,4 +2,3 @@ streamlit>=1.35.0
 pandas
 mysql-connector-python
 fpdf2
-weasyprint
