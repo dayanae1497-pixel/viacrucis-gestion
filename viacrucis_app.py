@@ -4,6 +4,7 @@ import mysql.connector
 from datetime import datetime
 import base64
 import os
+from fpdf import FPDF  # Cambiamos weasyprint por FPDF que es portátil
 
 # =========================================================================
 # 1. CONFIGURACIÓN DE PÁGINA (Debe ser lo primero)
@@ -192,13 +193,11 @@ def conectar():
         database="viacrucis_2026"
     )
 
-# --- NUEVA FUNCIÓN DE EXPORTACIÓN PDF DE ALTA FIDELIDAD VISUAL ---
+# --- REESCRITURA COMPLETA A FPDF (PORTÁTIL Y SIN DEPENDENCIAS EXTERNAS) ---
 def generar_pdf_reporte(db_conn):
-    try:
-        from weasyprint import HTML
-    except ImportError:
-        raise ImportError("Mano, debes instalar weasyprint ejecutando: pip install weasyprint")
-
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
     # 1. Extracción de Datos Resolviendo Descripciones e IDs
     query_p = """
         SELECT p.Nombre, p.Apellido, p.Edad, IFNULL(per.Descripción, 'Sin Asignar') AS Personaje,
@@ -237,233 +236,268 @@ def generar_pdf_reporte(db_conn):
     df_vestuario = pd.read_sql(query_v, db_conn)
     df_utileria = pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db_conn)
 
-    # 2. Construcción de Filas HTML para Tablas
-    html_part = "".join([f"<tr><td>{r['Nombre']} {r['Apellido']}</td><td>{r['Edad']}</td><td>{r['Personaje']}</td><td>{r['Rol']}</td><td>{r['Parroquia']}</td><td>{r['Comisión']}</td><td>{r['Teléfono']}</td></tr>" for _, r in df_participantes.iterrows()])
+    # Función interna para pintar el fondo oscuro característico del sistema
+    def aplicar_estilo_oscuro():
+        pdf.set_fill_color(28, 9, 51) # Fondo #1c0933
+        pdf.rect(0, 0, 210, 297, 'F')
+
+    # --- PÁGINA 1: ENCABEZADO Y ELENCO ---
+    pdf.add_page()
+    aplicar_estilo_oscuro()
+
+    # Banner superior estilizado (#150324 con borde dorado #b58c24)
+    pdf.set_fill_color(21, 3, 36)
+    pdf.rect(10, 10, 190, 32, 'F')
+    pdf.set_fill_color(181, 140, 36)
+    pdf.rect(10, 42, 190, 1.5, 'F')
     
-    html_patros = ""
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", style="B", size=18)
+    pdf.set_xy(10, 15)
+    pdf.cell(190, 8, "SISTEMA DE GESTIÓN DE PATRIMONIO", align="C", ln=True)
+    pdf.set_text_color(229, 184, 43) # Oro #e5b82b
+    pdf.set_font("Arial", style="B", size=11)
+    pdf.cell(190, 6, "REPORTE CONSOLIDADO FIEL - VIACRUCIS 2026", align="C", ln=True)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", size=8)
+    pdf.cell(190, 5, f"Emitido el: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", align="C", ln=True)
+
+    # Título Elenco
+    pdf.ln(10)
+    pdf.set_text_color(229, 184, 43)
+    pdf.set_font("Arial", style="B", size=13)
+    pdf.cell(190, 8, "Personal y Elenco Registrado", ln=True)
+    pdf.ln(2)
+    
+    # Encabezados Tabla Elenco
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_fill_color(49, 45, 56) # #312d38
+    pdf.set_text_color(229, 184, 43)
+    
+    headers_p = ["Nombre Completo", "Edad", "Papel", "Rol Base", "Parroquia", "Teléfono"]
+    widths_p = [42, 12, 35, 30, 46, 25]
+    
+    for h, w in zip(headers_p, widths_p):
+        pdf.cell(w, 7, h, border=1, align="C", fill=True)
+    pdf.ln()
+
+    pdf.set_font("Arial", size=8)
+    pdf.set_text_color(255, 255, 255)
+    
+    for _, r in df_participantes.iterrows():
+        if pdf.get_y() > 270:
+            pdf.add_page()
+            aplicar_estilo_oscuro()
+            pdf.set_font("Arial", style="B", size=8)
+            pdf.set_fill_color(49, 45, 56)
+            pdf.set_text_color(229, 184, 43)
+            for h, w in zip(headers_p, widths_p):
+                pdf.cell(w, 7, h, border=1, align="C", fill=True)
+            pdf.ln()
+            pdf.set_font("Arial", size=8)
+            pdf.set_text_color(255, 255, 255)
+
+        pdf.set_fill_color(43, 32, 58) # Filas #2b203a
+        nombre_c = f"{r['Nombre']} {r['Apellido']}"[:24]
+        pdf.cell(42, 6, nombre_c, border=1, fill=True)
+        pdf.cell(12, 6, str(r['Edad']), border=1, align="C", fill=True)
+        pdf.cell(35, 6, str(r['Personaje'])[:18], border=1, fill=True)
+        pdf.cell(30, 6, str(r['Rol'])[:15], border=1, fill=True)
+        pdf.cell(46, 6, str(r['Parroquia'])[:24], border=1, fill=True)
+        pdf.cell(25, 6, str(r['Teléfono'])[:12], border=1, align="C", fill=True)
+        pdf.ln()
+
+    # --- PÁGINA 2: BALANCE ECONÓMICO Y PATROCINANTES ---
+    pdf.add_page()
+    aplicar_estilo_oscuro()
+    
+    pdf.set_text_color(229, 184, 43)
+    pdf.set_font("Arial", style="B", size=13)
+    pdf.cell(190, 8, "Balance Económico General", ln=True)
+    pdf.ln(2)
+
+    # Renderizado de Tarjetas de Métricas en FPDF
+    pdf.set_font("Arial", style="B", size=8)
+    
+    # Caja 1: Ingresos
+    pdf.set_fill_color(43, 32, 58)
+    pdf.rect(10, 22, 60, 16, 'F')
+    pdf.set_xy(10, 24)
+    pdf.set_text_color(162, 155, 254)
+    pdf.cell(60, 4, "TOTAL INGRESOS", align="C", ln=True)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(60, 5, f"{total_in:,.2f} COP", align="C")
+
+    # Caja 2: Gastos
+    pdf.set_fill_color(43, 32, 58)
+    pdf.rect(75, 22, 60, 16, 'F')
+    pdf.set_xy(75, 24)
+    pdf.set_text_color(162, 155, 254)
+    pdf.cell(60, 4, "TOTAL GASTOS", align="C", ln=True)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(60, 5, f"{total_out:,.2f} COP", align="C")
+
+    # Caja 3: Saldo Neto (Borde Dorado)
+    pdf.set_fill_color(43, 32, 58)
+    pdf.rect(140, 22, 60, 16, 'F')
+    pdf.set_draw_color(229, 184, 43)
+    pdf.rect(140, 22, 60, 16, 'D')
+    pdf.set_xy(140, 24)
+    pdf.set_text_color(229, 184, 43)
+    pdf.cell(60, 4, "SALDO EN CAJA", align="C", ln=True)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(60, 5, f"{saldo:,.2f} COP", align="C")
+
+    # Reset de color de dibujo
+    pdf.set_draw_color(0, 0, 0)
+
+    # Sección Recaudación Patrocinantes
+    pdf.set_xy(10, 45)
+    pdf.set_text_color(229, 184, 43)
+    pdf.set_font("Arial", style="B", size=12)
+    pdf.cell(190, 6, "Control de Recaudación (Patrocinantes)", ln=True)
+    pdf.ln(2)
+
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_fill_color(49, 45, 56)
+    pdf.cell(70, 7, "Patrocinante / Negocio", border=1, fill=True)
+    pdf.cell(40, 7, "Monto Pactado", border=1, align="C", fill=True)
+    pdf.cell(40, 7, "Monto Abonado", border=1, align="C", fill=True)
+    pdf.cell(40, 7, "Saldo Pendiente", border=1, align="C", fill=True)
+    pdf.ln()
+
+    pdf.set_font("Arial", size=8)
     for _, r in df_patros.iterrows():
-        estilo_td = "background-color: #ff7c70; color: black;" if r['Abonado'] == 0 else ("background-color: #258d19; color: white;" if r['Pendiente'] <= 0 else "background-color: #fcf75e; color: black;")
-        html_patros += f"<tr><td>{r['Patrocinante']}</td><td>{r['Pactado']:,.2f} COP</td><td>{r['Abonado']:,.2f} COP</td><td style='{estilo_td}'>{r['Pendiente']:,.2f} COP</td></tr>"
+        if pdf.get_y() > 270:
+            pdf.add_page()
+            aplicar_estilo_oscuro()
+            pdf.set_font("Arial", style="B", size=8)
+            pdf.set_fill_color(49, 45, 56)
+            pdf.set_text_color(229, 184, 43)
+            pdf.cell(70, 7, "Patrocinante / Negocio", border=1, fill=True)
+            pdf.cell(40, 7, "Monto Pactado", border=1, align="C", fill=True)
+            pdf.cell(40, 7, "Monto Abonado", border=1, align="C", fill=True)
+            pdf.cell(40, 7, "Saldo Pendiente", border=1, align="C", fill=True)
+            pdf.ln()
 
-    html_gastos = "".join([f"<tr><td>{r['Fecha']}</td><td>{r['Concepto']}</td><td>{r['Monto']:,.2f} COP</td></tr>" for _, r in df_gastos.iterrows()])
-    html_vest = "".join([f"<tr><td>{r['Personaje']}</td><td>{r['piezas']}</td><td>{r['descripcion']}</td><td>{r['Parroquia']}</td></tr>" for _, r in df_vestuario.iterrows()])
-    html_util = "".join([f"<tr><td>{r['objeto']}</td><td>{r['cantidad']}</td><td>{r['descripcion']}</td></tr>" for _, r in df_utileria.iterrows()])
+        # Evaluación lógica de colores condicionales exactos del sistema
+        if r['Abonado'] == 0:
+            bg_color = (255, 124, 112) # Rojo suave
+            tx_color = (0, 0, 0)
+        elif r['Pendiente'] <= 0:
+            bg_color = (37, 141, 25) # Verde solvente
+            tx_color = (255, 255, 255)
+        else:
+            bg_color = (252, 247, 94) # Amarillo abono
+            tx_color = (0, 0, 0)
 
-    # 3. Plantilla HTML con Fidelidad de Colores e Identidad del Sistema
-    html_template = f"""
-    <html>
-    <head>
-        <style>
-            @page {{
-                size: A4;
-                margin: 18mm 15mm;
-                background-color: #1c0933;
-            }}
-            body {{
-                font-family: 'Arial', sans-serif;
-                color: #ffffff;
-                margin: 0;
-                padding: 0;
-                background-color: #1c0933;
-            }}
-            .header-pdf {{
-                background-color: #150324;
-                border-bottom: 4px solid #b58c24;
-                padding: 30px;
-                text-align: center;
-                margin-bottom: 25px;
-                border-radius: 6px;
-            }}
-            .header-pdf h1 {{
-                color: #ffffff;
-                font-size: 28px;
-                margin: 0 0 8px 0;
-                letter-spacing: 1px;
-            }}
-            .header-pdf p {{
-                color: #e5b82b;
-                margin: 0;
-                font-size: 13px;
-                font-weight: bold;
-            }}
-            h2 {{
-                color: #e5b82b;
-                font-size: 18px;
-                border-bottom: 2px solid #312d38;
-                padding-bottom: 6px;
-                margin-top: 30px;
-                margin-bottom: 15px;
-            }}
-            .metrics-container {{
-                margin-bottom: 20px;
-                width: 100%;
-            }}
-            .metric-box {{
-                display: inline-block;
-                width: 30%;
-                background-color: #2b203a;
-                padding: 12px;
-                border-radius: 6px;
-                text-align: center;
-                margin-right: 2%;
-                border: 1px solid #312d38;
-            }}
-            .metric-box.saldo {{
-                border: 1px solid #e5b82b;
-            }}
-            .metric-title {{
-                font-size: 11px;
-                color: #a29bfe;
-                text-transform: uppercase;
-                margin-bottom: 5px;
-            }}
-            .metric-value {{
-                font-size: 16px;
-                font-weight: bold;
-                color: #ffffff;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 25px;
-                background-color: #2b203a;
-                border-radius: 6px;
-                overflow: hidden;
-                font-size: 11px;
-            }}
-            th {{
-                background-color: #312d38;
-                color: #e5b82b;
-                text-align: left;
-                padding: 10px;
-                font-weight: bold;
-                border-bottom: 2px solid #1c0933;
-            }}
-            td {{
-                padding: 9px 10px;
-                border-bottom: 1px solid #1c0933;
-                color: #ffffff;
-            }}
-            tr:nth-child(even) {{
-                background-color: #231930;
-            }}
-            .caption {{
-                font-size: 10px;
-                color: #a29bfe;
-                margin-bottom: 10px;
-                font-weight: bold;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="header-pdf">
-            <h1>SISTEMA DE GESTIÓN DE PATRIMONIO</h1>
-            <p>REPORTE CONSOLIDADO FIEL - VIACRUCIS 2026</p>
-            <p style="color: #ffffff; font-size: 11px; font-weight: normal; margin-top: 5px;">Emitido el: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
-        </div>
+        # Celdas comunes
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_fill_color(43, 32, 58)
+        pdf.cell(70, 6, str(r['Patrocinante'])[:38], border=1, fill=True)
+        pdf.cell(40, 6, f"{r['Pactado']:,.2f} COP", border=1, align="R", fill=True)
+        pdf.cell(40, 6, f"{r['Abonado']:,.2f} COP", border=1, align="R", fill=True)
+        
+        # Celda condicional dinámica
+        pdf.set_text_color(*tx_color)
+        pdf.set_fill_color(*bg_color)
+        pdf.cell(40, 6, f"{r['Pendiente']:,.2f} COP", border=1, align="R", fill=True)
+        pdf.ln()
 
-        <h2>👥 Personal y Elenco Registrado</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Nombre Completo</th>
-                    <th>Edad</th>
-                    <th>Personaje Asignado</th>
-                    <th>Rol Base</th>
-                    <th>Parroquia Origen</th>
-                    <th>Comisión Asignada</th>
-                    <th>Teléfono</th>
-                </tr>
-            </thead>
-            <tbody>
-                {html_part}
-            </tbody>
-        </table>
-
-        <div style="page-break-before: always;"></div>
-
-        <h2>💵 Balance Económico General</h2>
-        <div class="metrics-container">
-            <div class="metric-box">
-                <div class="metric-title">Total Ingresos Pactados</div>
-                <div class="metric-value">{total_in:,.2f} COP</div>
-            </div>
-            <div class="metric-box">
-                <div class="metric-title">Total Egresos/Gastos</div>
-                <div class="metric-value">{total_out:,.2f} COP</div>
-            </div>
-            <div class="metric-box saldo">
-                <div class="metric-title" style="color: #e5b82b;">Saldo de Caja Neto</div>
-                <div class="metric-value" style="color: #e5b82b;">{saldo:,.2f} COP</div>
-            </div>
-        </div>
-
-        <h2>📋 Control de Recaudación (Patrocinantes)</h2>
-        <div class="caption">Estatus: Verde (Solvente) | Amarillo (Abonado pendiente) | Rojo (Sin registrar abonos)</div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Nombre Comercial o Patrocinante</th>
-                    <th>Monto Pactado</th>
-                    <th>Monto Abonado</th>
-                    <th>Saldo Pendiente</th>
-                </tr>
-            </thead>
-            <tbody>
-                {html_patros}
-            </tbody>
-        </table>
-
-        <h2>📊 Historial Descriptivo de Gastos</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Fecha de Registro</th>
-                    <th>Concepto Detallado</th>
-                    <th>Monto Erogado</th>
-                </tr>
-            </thead>
-            <tbody>
-                {html_gastos}
-            </tbody>
-        </table>
-
-        <div style="page-break-before: always;"></div>
-
-        <h2>📦 Inventario General de Vestuario</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Papel / Personaje</th>
-                    <th>Cantidad Piezas</th>
-                    <th>Descripción de Prendas</th>
-                    <th>Parroquia Propietaria</th>
-                </tr>
-            </thead>
-            <tbody>
-                {html_vest}
-            </tbody>
-        </table>
-
-        <h2>🛠️ Inventario Físico de Utilería</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Objeto / Herramienta</th>
-                    <th>Cantidad</th>
-                    <th>Descripción de Estado</th>
-                </tr>
-            </thead>
-            <tbody>
-                {html_util}
-            </tbody>
-        </table>
-    </body>
-    </html>
-    """
+    # --- PÁGINA 3: HISTORIAL DE GASTOS e INVENTARIOS ---
+    pdf.add_page()
+    aplicar_estilo_oscuro()
     
-    # Renderizamos y retornamos el PDF binario
-    return HTML(string=html_template).write_pdf()
+    pdf.set_text_color(229, 184, 43)
+    pdf.set_font("Arial", style="B", size=13)
+    pdf.cell(190, 8, "Historial Descriptivo de Gastos", ln=True)
+    pdf.ln(2)
+
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_fill_color(49, 45, 56)
+    pdf.cell(35, 7, "Fecha", border=1, align="C", fill=True)
+    pdf.cell(115, 7, "Concepto Detallado", border=1, fill=True)
+    pdf.cell(40, 7, "Monto Erogado", border=1, align="C", fill=True)
+    pdf.ln()
+
+    pdf.set_font("Arial", size=8)
+    pdf.set_text_color(255, 255, 255)
+    for _, r in df_gastos.iterrows():
+        if pdf.get_y() > 270:
+            pdf.add_page()
+            aplicar_estilo_oscuro()
+            pdf.set_font("Arial", style="B", size=8)
+            pdf.set_fill_color(49, 45, 56)
+            pdf.set_text_color(229, 184, 43)
+            pdf.cell(35, 7, "Fecha", border=1, align="C", fill=True)
+            pdf.cell(115, 7, "Concepto Detallado", border=1, fill=True)
+            pdf.cell(40, 7, "Monto Erogado", border=1, align="C", fill=True)
+            pdf.ln()
+            pdf.set_font("Arial", size=8)
+            pdf.set_text_color(255, 255, 255)
+
+        pdf.set_fill_color(43, 32, 58)
+        fecha_str = str(r['Fecha'])
+        pdf.cell(35, 6, fecha_str, border=1, align="C", fill=True)
+        pdf.cell(115, 6, str(r['Concepto'])[:65], border=1, fill=True)
+        pdf.cell(40, 6, f"{r['Monto']:,.2f} COP", border=1, align="R", fill=True)
+        pdf.ln()
+
+    # --- PÁGINA 4: INVENTARIOS COMBINADOS ---
+    pdf.add_page()
+    aplicar_estilo_oscuro()
+    
+    pdf.set_text_color(229, 184, 43)
+    pdf.set_font("Arial", style="B", size=13)
+    pdf.cell(190, 8, "Control de Inventarios (Vestuario y Utilería)", ln=True)
+    pdf.ln(3)
+
+    pdf.set_font("Arial", style="B", size=10)
+    pdf.cell(190, 6, "Vestuario Final", ln=True)
+    pdf.ln(1)
+    
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_fill_color(49, 45, 56)
+    pdf.cell(45, 7, "Personaje", border=1, fill=True)
+    pdf.cell(18, 7, "Piezas", border=1, align="C", fill=True)
+    pdf.cell(77, 7, "Descripción de Prendas", border=1, fill=True)
+    pdf.cell(50, 7, "Parroquia Dueña", border=1, fill=True)
+    pdf.ln()
+
+    pdf.set_font("Arial", size=8)
+    pdf.set_text_color(255, 255, 255)
+    for _, r in df_vestuario.iterrows():
+        pdf.set_fill_color(43, 32, 58)
+        pdf.cell(45, 6, str(r['Personaje'])[:22], border=1, fill=True)
+        pdf.cell(18, 6, str(r['piezas']), border=1, align="C", fill=True)
+        pdf.cell(77, 6, str(r['descripcion'])[:45], border=1, fill=True)
+        pdf.cell(50, 6, str(r['Parroquia'])[:26], border=1, fill=True)
+        pdf.ln()
+
+    pdf.ln(6)
+    pdf.set_text_color(229, 184, 43)
+    pdf.set_font("Arial", style="B", size=10)
+    pdf.cell(190, 6, "Utilería Física", ln=True)
+    pdf.ln(1)
+    
+    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_fill_color(49, 45, 56)
+    pdf.cell(50, 7, "Objeto / Herramienta", border=1, fill=True)
+    pdf.cell(25, 7, "Cantidad", border=1, align="C", fill=True)
+    pdf.cell(115, 7, "Descripción de Estado", border=1, fill=True)
+    pdf.ln()
+
+    pdf.set_font("Arial", size=8)
+    pdf.set_text_color(255, 255, 255)
+    for _, r in df_utileria.iterrows():
+        pdf.set_fill_color(43, 32, 58)
+        pdf.cell(50, 6, str(r['objeto'])[:26], border=1, fill=True)
+        pdf.cell(25, 6, str(r['cantidad']), border=1, align="C", fill=True)
+        pdf.cell(115, 6, str(r['descripcion'])[:70], border=1, fill=True)
+        pdf.ln()
+
+    # Retorna los bytes codificados en latin1 como pide el buffer de descarga
+    return pdf.output(dest='S').encode('latin1')
 
 # =========================================================================
 # 5. FILTRO Y PROTECCIÓN DE ACCESO
@@ -507,7 +541,7 @@ if st.session_state['autenticado']:
     st.sidebar.header("🖨️ Reportes")
 
     try:
-        # LLAMADA A LA NUEVA FUNCIÓN CON WEASYPRINT
+        # LLAMADA TOTALMENTE PORTÁTIL CON FPDF
         pdf_data = generar_pdf_reporte(db)
         st.sidebar.download_button(
             label="📥 DESCARGAR REPORTE PDF FIEL",
