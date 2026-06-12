@@ -198,11 +198,13 @@ def generar_pdf_reporte(db_conn):
     def clean_txt(texto):
         if texto is None:
             return ""
-        # Convertimos a string, reemplazamos caracteres extraños por seguridad
+        # Convertimos a string y forzamos el encoding para evitar caídas por acentos
         return str(texto).encode('latin-1', 'replace').decode('latin-1')
 
-    # Inicializamos FPDF en limpio
-    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    # =========================================================================
+    # INICIALIZACIÓN COMPATIBLE CON FPDF2 (VACÍO PARA EVITAR ERRORES DE __init__)
+    # =========================================================================
+    pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     
     # =========================================================================
@@ -253,7 +255,7 @@ def generar_pdf_reporte(db_conn):
     # =========================================================================
     # --- PÁGINA 1: ENCABEZADO Y ELENCO ---
     # =========================================================================
-    pdf.add_page()
+    pdf.add_page(orientation='P', format='A4') # Se le pasan los parámetros directo a la página
     aplicar_estilo_oscuro()
 
     # Banner superior estilizado (#150324 con borde dorado #b58c24)
@@ -263,25 +265,25 @@ def generar_pdf_reporte(db_conn):
     pdf.rect(10, 42, 190, 1.5, 'F')
     
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", style="B", size=18)
+    pdf.set_font("Helvetica", style="B", size=18) # Cambiado a Helvetica que es nativa y segura
     pdf.set_xy(10, 15)
     pdf.cell(190, 8, clean_txt("SISTEMA DE GESTIÓN DE PATRIMONIO"), align="C", ln=True)
     pdf.set_text_color(229, 184, 43) # Oro #e5b82b
-    pdf.set_font("Arial", style="B", size=11)
+    pdf.set_font("Helvetica", style="B", size=11)
     pdf.cell(190, 6, clean_txt("REPORTE CONSOLIDADO FIEL - VIACRUCIS 2026"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", size=8)
+    pdf.set_font("Helvetica", size=8)
     pdf.cell(190, 5, clean_txt(f"Emitido el: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"), align="C", ln=True)
 
     # Título Elenco
     pdf.ln(10)
     pdf.set_text_color(229, 184, 43)
-    pdf.set_font("Arial", style="B", size=13)
+    pdf.set_font("Helvetica", style="B", size=13)
     pdf.cell(190, 8, clean_txt("Personal y Elenco Registrado"), ln=True)
     pdf.ln(2)
     
     # Encabezados Tabla Elenco
-    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_font("Helvetica", style="B", size=8)
     pdf.set_fill_color(49, 45, 56) # #312d38
     pdf.set_text_color(229, 184, 43)
     
@@ -292,20 +294,20 @@ def generar_pdf_reporte(db_conn):
         pdf.cell(w, 7, clean_txt(h), border=1, align="C", fill=True)
     pdf.ln()
 
-    pdf.set_font("Arial", size=8)
+    pdf.set_font("Helvetica", size=8)
     pdf.set_text_color(255, 255, 255)
     
     for _, r in df_participantes.iterrows():
         if pdf.get_y() > 270:
-            pdf.add_page()
+            pdf.add_page(orientation='P', format='A4')
             aplicar_estilo_oscuro()
-            pdf.set_font("Arial", style="B", size=8)
+            pdf.set_font("Helvetica", style="B", size=8)
             pdf.set_fill_color(49, 45, 56)
             pdf.set_text_color(229, 184, 43)
             for h, w in zip(headers_p, widths_p):
                 pdf.cell(w, 7, clean_txt(h), border=1, align="C", fill=True)
             pdf.ln()
-            pdf.set_font("Arial", size=8)
+            pdf.set_font("Helvetica", size=8)
             pdf.set_text_color(255, 255, 255)
 
         pdf.set_fill_color(43, 32, 58) # Filas #2b203a
@@ -321,16 +323,16 @@ def generar_pdf_reporte(db_conn):
     # =========================================================================
     # --- PÁGINA 2: BALANCE ECONÓMICO Y PATROCINANTES ---
     # =========================================================================
-    pdf.add_page()
+    pdf.add_page(orientation='P', format='A4')
     aplicar_estilo_oscuro()
     
     pdf.set_text_color(229, 184, 43)
-    pdf.set_font("Arial", style="B", size=13)
+    pdf.set_font("Helvetica", style="B", size=13)
     pdf.cell(190, 8, clean_txt("Balance Economico General"), ln=True)
     pdf.ln(2)
 
     # Renderizado de Tarjetas de Métricas en FPDF
-    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_font("Helvetica", style="B", size=8)
     
     # Caja 1: Ingresos
     pdf.set_fill_color(43, 32, 58)
@@ -350,7 +352,7 @@ def generar_pdf_reporte(db_conn):
     pdf.set_text_color(255, 255, 255)
     pdf.cell(60, 5, clean_txt(f"{total_out:,.2f} COP"), align="C")
 
-    # Caja 3: Saldo Neto (Borde固定)
+    # Caja 3: Saldo Neto (Borde Dorado)
     pdf.set_fill_color(43, 32, 58)
     pdf.rect(140, 22, 60, 16, 'F')
     pdf.set_draw_color(229, 184, 43)
@@ -367,11 +369,11 @@ def generar_pdf_reporte(db_conn):
     # Sección Recaudación Patrocinantes
     pdf.set_xy(10, 45)
     pdf.set_text_color(229, 184, 43)
-    pdf.set_font("Arial", style="B", size=12)
+    pdf.set_font("Helvetica", style="B", size=12)
     pdf.cell(190, 6, clean_txt("Control de Recaudacion (Patrocinantes)"), ln=True)
     pdf.ln(2)
 
-    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_font("Helvetica", style="B", size=8)
     pdf.set_fill_color(49, 45, 56)
     pdf.cell(70, 7, clean_txt("Patrocinante / Negocio"), border=1, fill=True)
     pdf.cell(40, 7, clean_txt("Monto Pactado"), border=1, align="C", fill=True)
@@ -379,12 +381,12 @@ def generar_pdf_reporte(db_conn):
     pdf.cell(40, 7, clean_txt("Saldo Pendiente"), border=1, align="C", fill=True)
     pdf.ln()
 
-    pdf.set_font("Arial", size=8)
+    pdf.set_font("Helvetica", size=8)
     for _, r in df_patros.iterrows():
         if pdf.get_y() > 270:
-            pdf.add_page()
+            pdf.add_page(orientation='P', format='A4')
             aplicar_estilo_oscuro()
-            pdf.set_font("Arial", style="B", size=8)
+            pdf.set_font("Helvetica", style="B", size=8)
             pdf.set_fill_color(49, 45, 56)
             pdf.set_text_color(229, 184, 43)
             pdf.cell(70, 7, clean_txt("Patrocinante / Negocio"), border=1, fill=True)
@@ -419,35 +421,35 @@ def generar_pdf_reporte(db_conn):
     # =========================================================================
     # --- PÁGINA 3: HISTORIAL DE GASTOS ---
     # =========================================================================
-    pdf.add_page()
+    pdf.add_page(orientation='P', format='A4')
     aplicar_estilo_oscuro()
     
     pdf.set_text_color(229, 184, 43)
-    pdf.set_font("Arial", style="B", size=13)
+    pdf.set_font("Helvetica", style="B", size=13)
     pdf.cell(190, 8, clean_txt("Historial Descriptivo de Gastos"), ln=True)
     pdf.ln(2)
 
-    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_font("Helvetica", style="B", size=8)
     pdf.set_fill_color(49, 45, 56)
     pdf.cell(35, 7, clean_txt("Fecha"), border=1, align="C", fill=True)
     pdf.cell(115, 7, clean_txt("Concepto Detallado"), border=1, fill=True)
     pdf.cell(40, 7, clean_txt("Monto Erogado"), border=1, align="C", fill=True)
     pdf.ln()
 
-    pdf.set_font("Arial", size=8)
+    pdf.set_font("Helvetica", size=8)
     pdf.set_text_color(255, 255, 255)
     for _, r in df_gastos.iterrows():
         if pdf.get_y() > 270:
-            pdf.add_page()
+            pdf.add_page(orientation='P', format='A4')
             aplicar_estilo_oscuro()
-            pdf.set_font("Arial", style="B", size=8)
+            pdf.set_font("Helvetica", style="B", size=8)
             pdf.set_fill_color(49, 45, 56)
             pdf.set_text_color(229, 184, 43)
             pdf.cell(35, 7, clean_txt("Fecha"), border=1, align="C", fill=True)
             pdf.cell(115, 7, clean_txt("Concepto Detallado"), border=1, fill=True)
             pdf.cell(40, 7, clean_txt("Monto Erogado"), border=1, align="C", fill=True)
             pdf.ln()
-            pdf.set_font("Arial", size=8)
+            pdf.set_font("Helvetica", size=8)
             pdf.set_text_color(255, 255, 255)
 
         pdf.set_fill_color(43, 32, 58)
@@ -460,19 +462,19 @@ def generar_pdf_reporte(db_conn):
     # =========================================================================
     # --- PÁGINA 4: INVENTARIOS COMBINADOS ---
     # =========================================================================
-    pdf.add_page()
+    pdf.add_page(orientation='P', format='A4')
     aplicar_estilo_oscuro()
     
     pdf.set_text_color(229, 184, 43)
-    pdf.set_font("Arial", style="B", size=13)
+    pdf.set_font("Helvetica", style="B", size=13)
     pdf.cell(190, 8, clean_txt("Control de Inventarios (Vestuario y Utileria)"), ln=True)
     pdf.ln(3)
 
-    pdf.set_font("Arial", style="B", size=10)
+    pdf.set_font("Helvetica", style="B", size=10)
     pdf.cell(190, 6, clean_txt("Vestuario Final"), ln=True)
     pdf.ln(1)
     
-    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_font("Helvetica", style="B", size=8)
     pdf.set_fill_color(49, 45, 56)
     pdf.cell(45, 7, clean_txt("Personaje"), border=1, fill=True)
     pdf.cell(18, 7, clean_txt("Piezas"), border=1, align="C", fill=True)
@@ -480,7 +482,7 @@ def generar_pdf_reporte(db_conn):
     pdf.cell(50, 7, clean_txt("Parroquia Duena"), border=1, fill=True)
     pdf.ln()
 
-    pdf.set_font("Arial", size=8)
+    pdf.set_font("Helvetica", size=8)
     pdf.set_text_color(255, 255, 255)
     for _, r in df_vestuario.iterrows():
         pdf.set_fill_color(43, 32, 58)
@@ -492,18 +494,18 @@ def generar_pdf_reporte(db_conn):
 
     pdf.ln(6)
     pdf.set_text_color(229, 184, 43)
-    pdf.set_font("Arial", style="B", size=10)
+    pdf.set_font("Helvetica", style="B", size=10)
     pdf.cell(190, 6, clean_txt("Utileria Fisica"), ln=True)
     pdf.ln(1)
     
-    pdf.set_font("Arial", style="B", size=8)
+    pdf.set_font("Helvetica", style="B", size=8)
     pdf.set_fill_color(49, 45, 56)
     pdf.cell(50, 7, clean_txt("Objeto / Herramienta"), border=1, fill=True)
     pdf.cell(25, 7, clean_txt("Cantidad"), border=1, align="C", fill=True)
     pdf.cell(115, 7, clean_txt("Descripcion de Estado"), border=1, fill=True)
     pdf.ln()
 
-    pdf.set_font("Arial", size=8)
+    pdf.set_font("Helvetica", size=8)
     pdf.set_text_color(255, 255, 255)
     for _, r in df_utileria.iterrows():
         pdf.set_fill_color(43, 32, 58)
@@ -513,11 +515,11 @@ def generar_pdf_reporte(db_conn):
         pdf.ln()
 
     # =========================================================================
-    # CAMBIO CRÍTICO: RETORNO DE BYTES COMPATIBLE CON FPDF2 (SIN EL 'dest')
+    # RETORNO SEGURO DE BYTES COMPATIBLE AL 100% CON FPDF2
     # =========================================================================
     pdf_output = pdf.output()
     
-    # fpdf2 retorna bytes directo en memoria si no se le define una ruta física
+    # fpdf2 retorna un objeto bytearray/bytes por defecto, manejamos si llega un string
     if isinstance(pdf_output, str):
         return bytes(pdf_output, 'latin-1', errors='replace')
         
