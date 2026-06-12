@@ -194,7 +194,16 @@ def conectar():
     )
 
 # --- REESCRITURA COMPLETA A FPDF (PORTÁTIL Y SIN DEPENDENCIAS EXTERNAS) ---
+# --- REESCRITURA DE REPORTE EVITANDO CONFLICTOS DE ENCODING (VERSIÓN ULTRA BLINDADA) ---
 def generar_pdf_reporte(db_conn):
+    # Función auxiliar interna optimizada para forzar compatibilidad estricta con latin-1
+    def clean_txt(texto):
+        if texto is None:
+            return ""
+        # Convertimos a string, codificamos reemplazando caracteres extraños y volvemos a decodificar
+        # Esto cambia caracteres imposibles por un '?' en vez de tumbarte la app
+        return str(texto).encode('latin-1', 'replace').decode('latin-1')
+
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
     
@@ -254,19 +263,19 @@ def generar_pdf_reporte(db_conn):
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", style="B", size=18)
     pdf.set_xy(10, 15)
-    pdf.cell(190, 8, "SISTEMA DE GESTIÓN DE PATRIMONIO", align="C", ln=True)
+    pdf.cell(190, 8, clean_txt("SISTEMA DE GESTIÓN DE PATRIMONIO"), align="C", ln=True)
     pdf.set_text_color(229, 184, 43) # Oro #e5b82b
     pdf.set_font("Arial", style="B", size=11)
-    pdf.cell(190, 6, "REPORTE CONSOLIDADO FIEL - VIACRUCIS 2026", align="C", ln=True)
+    pdf.cell(190, 6, clean_txt("REPORTE CONSOLIDADO FIEL - VIACRUCIS 2026"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", size=8)
-    pdf.cell(190, 5, f"Emitido el: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", align="C", ln=True)
+    pdf.cell(190, 5, clean_txt(f"Emitido el: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"), align="C", ln=True)
 
     # Título Elenco
     pdf.ln(10)
     pdf.set_text_color(229, 184, 43)
     pdf.set_font("Arial", style="B", size=13)
-    pdf.cell(190, 8, "Personal y Elenco Registrado", ln=True)
+    pdf.cell(190, 8, clean_txt("Personal y Elenco Registrado"), ln=True)
     pdf.ln(2)
     
     # Encabezados Tabla Elenco
@@ -274,11 +283,11 @@ def generar_pdf_reporte(db_conn):
     pdf.set_fill_color(49, 45, 56) # #312d38
     pdf.set_text_color(229, 184, 43)
     
-    headers_p = ["Nombre Completo", "Edad", "Papel", "Rol Base", "Parroquia", "Teléfono"]
+    headers_p = ["Nombre Completo", "Edad", "Papel", "Rol Base", "Parroquia", "Telefono"]
     widths_p = [42, 12, 35, 30, 46, 25]
     
     for h, w in zip(headers_p, widths_p):
-        pdf.cell(w, 7, h, border=1, align="C", fill=True)
+        pdf.cell(w, 7, clean_txt(h), border=1, align="C", fill=True)
     pdf.ln()
 
     pdf.set_font("Arial", size=8)
@@ -292,19 +301,19 @@ def generar_pdf_reporte(db_conn):
             pdf.set_fill_color(49, 45, 56)
             pdf.set_text_color(229, 184, 43)
             for h, w in zip(headers_p, widths_p):
-                pdf.cell(w, 7, h, border=1, align="C", fill=True)
+                pdf.cell(w, 7, clean_txt(h), border=1, align="C", fill=True)
             pdf.ln()
             pdf.set_font("Arial", size=8)
             pdf.set_text_color(255, 255, 255)
 
         pdf.set_fill_color(43, 32, 58) # Filas #2b203a
         nombre_c = f"{r['Nombre']} {r['Apellido']}"[:24]
-        pdf.cell(42, 6, nombre_c, border=1, fill=True)
-        pdf.cell(12, 6, str(r['Edad']), border=1, align="C", fill=True)
-        pdf.cell(35, 6, str(r['Personaje'])[:18], border=1, fill=True)
-        pdf.cell(30, 6, str(r['Rol'])[:15], border=1, fill=True)
-        pdf.cell(46, 6, str(r['Parroquia'])[:24], border=1, fill=True)
-        pdf.cell(25, 6, str(r['Teléfono'])[:12], border=1, align="C", fill=True)
+        pdf.cell(42, 6, clean_txt(nombre_c), border=1, fill=True)
+        pdf.cell(12, 6, clean_txt(r['Edad']), border=1, align="C", fill=True)
+        pdf.cell(35, 6, clean_txt(r['Personaje'])[:18], border=1, fill=True)
+        pdf.cell(30, 6, clean_txt(r['Rol'])[:15], border=1, fill=True)
+        pdf.cell(46, 6, clean_txt(r['Parroquia'])[:24], border=1, fill=True)
+        pdf.cell(25, 6, clean_txt(r['Teléfono'])[:12], border=1, align="C", fill=True)
         pdf.ln()
 
     # --- PÁGINA 2: BALANCE ECONÓMICO Y PATROCINANTES ---
@@ -313,7 +322,7 @@ def generar_pdf_reporte(db_conn):
     
     pdf.set_text_color(229, 184, 43)
     pdf.set_font("Arial", style="B", size=13)
-    pdf.cell(190, 8, "Balance Económico General", ln=True)
+    pdf.cell(190, 8, clean_txt("Balance Economico General"), ln=True)
     pdf.ln(2)
 
     # Renderizado de Tarjetas de Métricas en FPDF
@@ -324,18 +333,18 @@ def generar_pdf_reporte(db_conn):
     pdf.rect(10, 22, 60, 16, 'F')
     pdf.set_xy(10, 24)
     pdf.set_text_color(162, 155, 254)
-    pdf.cell(60, 4, "TOTAL INGRESOS", align="C", ln=True)
+    pdf.cell(60, 4, clean_txt("TOTAL INGRESOS"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(60, 5, f"{total_in:,.2f} COP", align="C")
+    pdf.cell(60, 5, clean_txt(f"{total_in:,.2f} COP"), align="C")
 
     # Caja 2: Gastos
     pdf.set_fill_color(43, 32, 58)
     pdf.rect(75, 22, 60, 16, 'F')
     pdf.set_xy(75, 24)
     pdf.set_text_color(162, 155, 254)
-    pdf.cell(60, 4, "TOTAL GASTOS", align="C", ln=True)
+    pdf.cell(60, 4, clean_txt("TOTAL GASTOS"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(60, 5, f"{total_out:,.2f} COP", align="C")
+    pdf.cell(60, 5, clean_txt(f"{total_out:,.2f} COP"), align="C")
 
     # Caja 3: Saldo Neto (Borde Dorado)
     pdf.set_fill_color(43, 32, 58)
@@ -344,9 +353,9 @@ def generar_pdf_reporte(db_conn):
     pdf.rect(140, 22, 60, 16, 'D')
     pdf.set_xy(140, 24)
     pdf.set_text_color(229, 184, 43)
-    pdf.cell(60, 4, "SALDO EN CAJA", align="C", ln=True)
+    pdf.cell(60, 4, clean_txt("SALDO EN CAJA"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(60, 5, f"{saldo:,.2f} COP", align="C")
+    pdf.cell(60, 5, clean_txt(f"{saldo:,.2f} COP"), align="C")
 
     # Reset de color de dibujo
     pdf.set_draw_color(0, 0, 0)
@@ -355,15 +364,15 @@ def generar_pdf_reporte(db_conn):
     pdf.set_xy(10, 45)
     pdf.set_text_color(229, 184, 43)
     pdf.set_font("Arial", style="B", size=12)
-    pdf.cell(190, 6, "Control de Recaudación (Patrocinantes)", ln=True)
+    pdf.cell(190, 6, clean_txt("Control de Recaudacion (Patrocinantes)"), ln=True)
     pdf.ln(2)
 
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(49, 45, 56)
-    pdf.cell(70, 7, "Patrocinante / Negocio", border=1, fill=True)
-    pdf.cell(40, 7, "Monto Pactado", border=1, align="C", fill=True)
-    pdf.cell(40, 7, "Monto Abonado", border=1, align="C", fill=True)
-    pdf.cell(40, 7, "Saldo Pendiente", border=1, align="C", fill=True)
+    pdf.cell(70, 7, clean_txt("Patrocinante / Negocio"), border=1, fill=True)
+    pdf.cell(40, 7, clean_txt("Monto Pactado"), border=1, align="C", fill=True)
+    pdf.cell(40, 7, clean_txt("Monto Abonado"), border=1, align="C", fill=True)
+    pdf.cell(40, 7, clean_txt("Saldo Pendiente"), border=1, align="C", fill=True)
     pdf.ln()
 
     pdf.set_font("Arial", size=8)
@@ -374,10 +383,10 @@ def generar_pdf_reporte(db_conn):
             pdf.set_font("Arial", style="B", size=8)
             pdf.set_fill_color(49, 45, 56)
             pdf.set_text_color(229, 184, 43)
-            pdf.cell(70, 7, "Patrocinante / Negocio", border=1, fill=True)
-            pdf.cell(40, 7, "Monto Pactado", border=1, align="C", fill=True)
-            pdf.cell(40, 7, "Monto Abonado", border=1, align="C", fill=True)
-            pdf.cell(40, 7, "Saldo Pendiente", border=1, align="C", fill=True)
+            pdf.cell(70, 7, clean_txt("Patrocinante / Negocio"), border=1, fill=True)
+            pdf.cell(40, 7, clean_txt("Monto Pactado"), border=1, align="C", fill=True)
+            pdf.cell(40, 7, clean_txt("Monto Abonado"), border=1, align="C", fill=True)
+            pdf.cell(40, 7, clean_txt("Saldo Pendiente"), border=1, align="C", fill=True)
             pdf.ln()
 
         # Evaluación lógica de colores condicionales exactos del sistema
@@ -394,30 +403,30 @@ def generar_pdf_reporte(db_conn):
         # Celdas comunes
         pdf.set_text_color(255, 255, 255)
         pdf.set_fill_color(43, 32, 58)
-        pdf.cell(70, 6, str(r['Patrocinante'])[:38], border=1, fill=True)
-        pdf.cell(40, 6, f"{r['Pactado']:,.2f} COP", border=1, align="R", fill=True)
-        pdf.cell(40, 6, f"{r['Abonado']:,.2f} COP", border=1, align="R", fill=True)
+        pdf.cell(70, 6, clean_txt(r['Patrocinante'])[:38], border=1, fill=True)
+        pdf.cell(40, 6, clean_txt(f"{r['Pactado']:,.2f} COP"), border=1, align="R", fill=True)
+        pdf.cell(40, 6, clean_txt(f"{r['Abonado']:,.2f} COP"), border=1, align="R", fill=True)
         
         # Celda condicional dinámica
         pdf.set_text_color(*tx_color)
         pdf.set_fill_color(*bg_color)
-        pdf.cell(40, 6, f"{r['Pendiente']:,.2f} COP", border=1, align="R", fill=True)
+        pdf.cell(40, 6, clean_txt(f"{r['Pendiente']:,.2f} COP"), border=1, align="R", fill=True)
         pdf.ln()
 
-    # --- PÁGINA 3: HISTORIAL DE GASTOS e INVENTARIOS ---
+    # --- PÁGINA 3: HISTORIAL DE GASTOS ---
     pdf.add_page()
     aplicar_estilo_oscuro()
     
     pdf.set_text_color(229, 184, 43)
     pdf.set_font("Arial", style="B", size=13)
-    pdf.cell(190, 8, "Historial Descriptivo de Gastos", ln=True)
+    pdf.cell(190, 8, clean_txt("Historial Descriptivo de Gastos"), ln=True)
     pdf.ln(2)
 
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(49, 45, 56)
-    pdf.cell(35, 7, "Fecha", border=1, align="C", fill=True)
-    pdf.cell(115, 7, "Concepto Detallado", border=1, fill=True)
-    pdf.cell(40, 7, "Monto Erogado", border=1, align="C", fill=True)
+    pdf.cell(35, 7, clean_txt("Fecha"), border=1, align="C", fill=True)
+    pdf.cell(115, 7, clean_txt("Concepto Detallado"), border=1, fill=True)
+    pdf.cell(40, 7, clean_txt("Monto Erogado"), border=1, align="C", fill=True)
     pdf.ln()
 
     pdf.set_font("Arial", size=8)
@@ -429,18 +438,18 @@ def generar_pdf_reporte(db_conn):
             pdf.set_font("Arial", style="B", size=8)
             pdf.set_fill_color(49, 45, 56)
             pdf.set_text_color(229, 184, 43)
-            pdf.cell(35, 7, "Fecha", border=1, align="C", fill=True)
-            pdf.cell(115, 7, "Concepto Detallado", border=1, fill=True)
-            pdf.cell(40, 7, "Monto Erogado", border=1, align="C", fill=True)
+            pdf.cell(35, 7, clean_txt("Fecha"), border=1, align="C", fill=True)
+            pdf.cell(115, 7, clean_txt("Concepto Detallado"), border=1, fill=True)
+            pdf.cell(40, 7, clean_txt("Monto Erogado"), border=1, align="C", fill=True)
             pdf.ln()
             pdf.set_font("Arial", size=8)
             pdf.set_text_color(255, 255, 255)
 
         pdf.set_fill_color(43, 32, 58)
         fecha_str = str(r['Fecha'])
-        pdf.cell(35, 6, fecha_str, border=1, align="C", fill=True)
-        pdf.cell(115, 6, str(r['Concepto'])[:65], border=1, fill=True)
-        pdf.cell(40, 6, f"{r['Monto']:,.2f} COP", border=1, align="R", fill=True)
+        pdf.cell(35, 6, clean_txt(fecha_str), border=1, align="C", fill=True)
+        pdf.cell(115, 6, clean_txt(r['Concepto'])[:65], border=1, fill=True)
+        pdf.cell(40, 6, clean_txt(f"{r['Monto']:,.2f} COP"), border=1, align="R", fill=True)
         pdf.ln()
 
     # --- PÁGINA 4: INVENTARIOS COMBINADOS ---
@@ -449,55 +458,59 @@ def generar_pdf_reporte(db_conn):
     
     pdf.set_text_color(229, 184, 43)
     pdf.set_font("Arial", style="B", size=13)
-    pdf.cell(190, 8, "Control de Inventarios (Vestuario y Utilería)", ln=True)
+    pdf.cell(190, 8, clean_txt("Control de Inventarios (Vestuario y Utileria)"), ln=True)
     pdf.ln(3)
 
     pdf.set_font("Arial", style="B", size=10)
-    pdf.cell(190, 6, "Vestuario Final", ln=True)
+    pdf.cell(190, 6, clean_txt("Vestuario Final"), ln=True)
     pdf.ln(1)
     
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(49, 45, 56)
-    pdf.cell(45, 7, "Personaje", border=1, fill=True)
-    pdf.cell(18, 7, "Piezas", border=1, align="C", fill=True)
-    pdf.cell(77, 7, "Descripción de Prendas", border=1, fill=True)
-    pdf.cell(50, 7, "Parroquia Dueña", border=1, fill=True)
+    pdf.cell(45, 7, clean_txt("Personaje"), border=1, fill=True)
+    pdf.cell(18, 7, clean_txt("Piezas"), border=1, align="C", fill=True)
+    pdf.cell(77, 7, clean_txt("Descripcion de Prendas"), border=1, fill=True)
+    pdf.cell(50, 7, clean_txt("Parroquia Duena"), border=1, fill=True)
     pdf.ln()
 
     pdf.set_font("Arial", size=8)
     pdf.set_text_color(255, 255, 255)
     for _, r in df_vestuario.iterrows():
         pdf.set_fill_color(43, 32, 58)
-        pdf.cell(45, 6, str(r['Personaje'])[:22], border=1, fill=True)
-        pdf.cell(18, 6, str(r['piezas']), border=1, align="C", fill=True)
-        pdf.cell(77, 6, str(r['descripcion'])[:45], border=1, fill=True)
-        pdf.cell(50, 6, str(r['Parroquia'])[:26], border=1, fill=True)
+        pdf.cell(45, 6, clean_txt(r['Personaje'])[:22], border=1, fill=True)
+        pdf.cell(18, 6, clean_txt(r['piezas']), border=1, align="C", fill=True)
+        pdf.cell(77, 6, clean_txt(r['descripcion'])[:45], border=1, fill=True)
+        pdf.cell(50, 6, clean_txt(r['Parroquia'])[:26], border=1, fill=True)
         pdf.ln()
 
     pdf.ln(6)
     pdf.set_text_color(229, 184, 43)
     pdf.set_font("Arial", style="B", size=10)
-    pdf.cell(190, 6, "Utilería Física", ln=True)
+    pdf.cell(190, 6, clean_txt("Utileria Fisica"), ln=True)
     pdf.ln(1)
     
     pdf.set_font("Arial", style="B", size=8)
     pdf.set_fill_color(49, 45, 56)
-    pdf.cell(50, 7, "Objeto / Herramienta", border=1, fill=True)
-    pdf.cell(25, 7, "Cantidad", border=1, align="C", fill=True)
-    pdf.cell(115, 7, "Descripción de Estado", border=1, fill=True)
+    pdf.cell(50, 7, clean_txt("Objeto / Herramienta"), border=1, fill=True)
+    pdf.cell(25, 7, clean_txt("Cantidad"), border=1, align="C", fill=True)
+    pdf.cell(115, 7, clean_txt("Descripcion de Estado"), border=1, fill=True)
     pdf.ln()
 
     pdf.set_font("Arial", size=8)
     pdf.set_text_color(255, 255, 255)
     for _, r in df_utileria.iterrows():
         pdf.set_fill_color(43, 32, 58)
-        pdf.cell(50, 6, str(r['objeto'])[:26], border=1, fill=True)
-        pdf.cell(25, 6, str(r['cantidad']), border=1, align="C", fill=True)
-        pdf.cell(115, 6, str(r['descripcion'])[:70], border=1, fill=True)
+        pdf.cell(50, 6, clean_txt(r['objeto'])[:26], border=1, fill=True)
+        pdf.cell(25, 6, clean_txt(r['cantidad']), border=1, align="C", fill=True)
+        pdf.cell(115, 6, clean_txt(r['descripcion'])[:70], border=1, fill=True)
         pdf.ln()
 
-    # Retorna los bytes codificados en latin1 como pide el buffer de descarga
-    return pdf.output(dest='S').encode('latin1')
+    # CAMBIO CRÍTICO DE ENCODING SEGURO EN EL RETORNO DE BYTES
+    # Usamos fpdf nativo en modo texto y convertimos de forma forzada y segura a byteslatin1
+    pdf_output_string = pdf.output(dest='S')
+    if isinstance(pdf_output_string, str):
+        return bytes(pdf_output_string, 'latin-1', errors='replace')
+    return pdf_output_string
 
 # =========================================================================
 # 5. FILTRO Y PROTECCIÓN DE ACCESO
