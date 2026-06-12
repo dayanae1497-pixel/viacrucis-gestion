@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 import mysql.connector
+from fpdf import FPDF
 from datetime import datetime
 import base64
 import os
-from fpdf import FPDF  # Cambiamos weasyprint por FPDF que es portátil
 
 # =========================================================================
 # 1. CONFIGURACIÓN DE PÁGINA (Debe ser lo primero)
