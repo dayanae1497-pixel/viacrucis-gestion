@@ -193,21 +193,21 @@ def conectar():
         database="viacrucis_2026"
     )
 
-# --- REESCRITURA COMPLETA A FPDF (PORTÁTIL Y SIN DEPENDENCIAS EXTERNAS) ---
-# --- REESCRITURA DE REPORTE EVITANDO CONFLICTOS DE ENCODING (VERSIÓN ULTRA BLINDADA) ---
 def generar_pdf_reporte(db_conn):
-    # Función auxiliar interna optimizada para forzar compatibilidad estricta con latin-1
+    # Función auxiliar interna optimizada para fpdf2 y forzar compatibilidad con latin-1
     def clean_txt(texto):
         if texto is None:
             return ""
-        # Convertimos a string, codificamos reemplazando caracteres extraños y volvemos a decodificar
-        # Esto cambia caracteres imposibles por un '?' en vez de tumbarte la app
+        # Convertimos a string, reemplazamos caracteres extraños por seguridad
         return str(texto).encode('latin-1', 'replace').decode('latin-1')
 
+    # Inicializamos FPDF en limpio
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
     
-    # 1. Extracción de Datos Resolviendo Descripciones e IDs
+    # =========================================================================
+    # 1. EXTRACCIÓN DE DATOS DESDE LA BASE DE DATOS
+    # =========================================================================
     query_p = """
         SELECT p.Nombre, p.Apellido, p.Edad, IFNULL(per.Descripción, 'Sin Asignar') AS Personaje,
         r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia,
@@ -245,12 +245,14 @@ def generar_pdf_reporte(db_conn):
     df_vestuario = pd.read_sql(query_v, db_conn)
     df_utileria = pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db_conn)
 
-    # Función interna para pintar el fondo oscuro característico del sistema
+    # Función interna para pintar el fondo oscuro característico de tu sistema
     def aplicar_estilo_oscuro():
         pdf.set_fill_color(28, 9, 51) # Fondo #1c0933
         pdf.rect(0, 0, 210, 297, 'F')
 
+    # =========================================================================
     # --- PÁGINA 1: ENCABEZADO Y ELENCO ---
+    # =========================================================================
     pdf.add_page()
     aplicar_estilo_oscuro()
 
@@ -316,7 +318,9 @@ def generar_pdf_reporte(db_conn):
         pdf.cell(25, 6, clean_txt(r['Teléfono'])[:12], border=1, align="C", fill=True)
         pdf.ln()
 
+    # =========================================================================
     # --- PÁGINA 2: BALANCE ECONÓMICO Y PATROCINANTES ---
+    # =========================================================================
     pdf.add_page()
     aplicar_estilo_oscuro()
     
@@ -346,7 +350,7 @@ def generar_pdf_reporte(db_conn):
     pdf.set_text_color(255, 255, 255)
     pdf.cell(60, 5, clean_txt(f"{total_out:,.2f} COP"), align="C")
 
-    # Caja 3: Saldo Neto (Borde Dorado)
+    # Caja 3: Saldo Neto (Borde固定)
     pdf.set_fill_color(43, 32, 58)
     pdf.rect(140, 22, 60, 16, 'F')
     pdf.set_draw_color(229, 184, 43)
@@ -389,7 +393,7 @@ def generar_pdf_reporte(db_conn):
             pdf.cell(40, 7, clean_txt("Saldo Pendiente"), border=1, align="C", fill=True)
             pdf.ln()
 
-        # Evaluación lógica de colores condicionales exactos del sistema
+        # Lógica de colores condicionales del sistema
         if r['Abonado'] == 0:
             bg_color = (255, 124, 112) # Rojo suave
             tx_color = (0, 0, 0)
@@ -400,7 +404,6 @@ def generar_pdf_reporte(db_conn):
             bg_color = (252, 247, 94) # Amarillo abono
             tx_color = (0, 0, 0)
 
-        # Celdas comunes
         pdf.set_text_color(255, 255, 255)
         pdf.set_fill_color(43, 32, 58)
         pdf.cell(70, 6, clean_txt(r['Patrocinante'])[:38], border=1, fill=True)
@@ -413,7 +416,9 @@ def generar_pdf_reporte(db_conn):
         pdf.cell(40, 6, clean_txt(f"{r['Pendiente']:,.2f} COP"), border=1, align="R", fill=True)
         pdf.ln()
 
+    # =========================================================================
     # --- PÁGINA 3: HISTORIAL DE GASTOS ---
+    # =========================================================================
     pdf.add_page()
     aplicar_estilo_oscuro()
     
@@ -452,7 +457,9 @@ def generar_pdf_reporte(db_conn):
         pdf.cell(40, 6, clean_txt(f"{r['Monto']:,.2f} COP"), border=1, align="R", fill=True)
         pdf.ln()
 
+    # =========================================================================
     # --- PÁGINA 4: INVENTARIOS COMBINADOS ---
+    # =========================================================================
     pdf.add_page()
     aplicar_estilo_oscuro()
     
@@ -505,12 +512,16 @@ def generar_pdf_reporte(db_conn):
         pdf.cell(115, 6, clean_txt(r['descripcion'])[:70], border=1, fill=True)
         pdf.ln()
 
-    # CAMBIO CRÍTICO DE ENCODING SEGURO EN EL RETORNO DE BYTES
-    # Usamos fpdf nativo en modo texto y convertimos de forma forzada y segura a byteslatin1
-    pdf_output_string = pdf.output(dest='S')
-    if isinstance(pdf_output_string, str):
-        return bytes(pdf_output_string, 'latin-1', errors='replace')
-    return pdf_output_string
+    # =========================================================================
+    # CAMBIO CRÍTICO: RETORNO DE BYTES COMPATIBLE CON FPDF2 (SIN EL 'dest')
+    # =========================================================================
+    pdf_output = pdf.output()
+    
+    # fpdf2 retorna bytes directo en memoria si no se le define una ruta física
+    if isinstance(pdf_output, str):
+        return bytes(pdf_output, 'latin-1', errors='replace')
+        
+    return pdf_output
 
 # =========================================================================
 # 5. FILTRO Y PROTECCIÓN DE ACCESO
