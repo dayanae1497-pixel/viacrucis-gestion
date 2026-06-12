@@ -1,15 +1,18 @@
 import streamlit as st
 import pandas as pd
 import mysql.connector
-from fpdf import FPDF 
 from datetime import datetime
 import base64
 import os
 
+# =========================================================================
 # 1. CONFIGURACIÓN DE PÁGINA (Debe ser lo primero)
+# =========================================================================
 st.set_page_config(page_title="Viacrucis 2026 - Gestión", layout="wide")
 
+# =========================================================================
 # 2. INICIALIZACIÓN SEGURA DE SESIONES (Previene AttributeErrors)
+# =========================================================================
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 if 'editor_version' not in st.session_state:
@@ -58,19 +61,17 @@ else:
     css_banner_header = "background-color: #150324;"
 
 
-# --- CONTROLADORES DE ESTILO CSS CORREGIDOS (Aquí acomodamos el detalle de las flechas) ---
+# --- CONTROLADORES DE ESTILO CSS CORREGIDOS ---
 st.markdown(f"""
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
     
     <style>
     @import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800;900&display=swap');
     
-    /* CORRECCIÓN DE FLECHAS: Excluimos las etiquetas span generales para que Streamlit use sus fuentes nativas */
     html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, label {{
         font-family: 'League Spartan', sans-serif !important;
     }}
 
-    /* Clase específica para cuando SÍ queramos usar íconos de Google sin romper los selectores */
     .icono-custom {{
         font-family: 'Material Symbols Outlined' !important;
         font-weight: normal;
@@ -85,12 +86,10 @@ st.markdown(f"""
         vertical-align: middle;
     }}
 
-    /* Fondo general del sistema con la imagen general */
     .stApp {{
         {css_fondo_sistema}
     }}
 
-    /* ENCABEZADO: Bloque con la imagen del Banner (Presente.png) */
     .header-sistema {{
         {css_banner_header}
         border-radius: 8px;
@@ -110,7 +109,6 @@ st.markdown(f"""
         text-shadow: 3px 3px 10px rgba(0, 0, 0, 0.85);
     }}
 
-    /* SECCIÓN DE ACCESO */
     .banner-acceso {{
         background-color: #2b203a;
         padding: 15px;
@@ -127,7 +125,6 @@ st.markdown(f"""
         margin: 0 !important;
     }}
 
-    /* INPUTS DEL LOGIN */
     .stTextInput > div > div > input {{
         background-color: #ffffff !important;
         color: #150324 !important;
@@ -137,7 +134,6 @@ st.markdown(f"""
         padding: 14px 25px !important;
     }}
     
-    /* PESTAÑAS (TABS) */
     .stTabs [data-baseweb="tab-list"] {{
         background-color: #312d38 !important;
         padding: 10px 20px !important;
@@ -153,12 +149,10 @@ st.markdown(f"""
         border-bottom: 4px solid #e5b82b !important;
     }}
 
-    /* Visibilidad de celdas dataframes */
     div[data-testid="stDataFrame"] div, div[data-testid="stDataEditor"] div {{
         color: #ffffff !important;
     }}
     
-    /* REPLICA EXACTA DEL AVISO DE SEGURIDAD */
     .aviso-seguridad-box {{
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -170,7 +164,6 @@ st.markdown(f"""
         margin-bottom: 15px;
     }}
 
-    /* INYECCIÓN DE ESTILOS AVANZADOS */
     button[data-testid="stDataEditor-AddRowOverlay"], 
     .stDataEditor div[data-baseweb="table"] div, 
     .stDataEditor canvas {{
@@ -186,536 +179,749 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# =========================================================================
+# 4. CONEXIÓN Y LÓGICA DE BASE DE DATOS
+# =========================================================================
 def conectar():
     password_db = st.secrets.get("password", "AVNS_ytphqSAjobNIHWjlbex")
     return mysql.connector.connect(
-        host="mysql-68077f9-viacrucis2026.d.aivencloud.com", 
-        user="avnadmin", 
-        password=password_db, 
-        port=18358, 
+        host="mysql-68077f9-viacrucis2026.d.aivencloud.com",
+        user="avnadmin",
+        password=password_db,
+        port=18358,
         database="viacrucis_2026"
     )
 
-@st.cache_data(ttl=600)
-def cargar_tabla_optimizado(nombre_tabla):
-    conn_cache = conectar()
+# --- NUEVA FUNCIÓN DE EXPORTACIÓN PDF DE ALTA FIDELIDAD VISUAL ---
+def generar_pdf_reporte(db_conn):
     try:
-        df = pd.read_sql(f"SELECT * FROM {nombre_tabla}", conn_cache)
-    finally:
-        conn_cache.close()
-    return df
+        from weasyprint import HTML
+    except ImportError:
+        raise ImportError("Mano, debes instalar weasyprint ejecutando: pip install weasyprint")
 
-# --- CONTROL DE ACCESO ---
+    # 1. Extracción de Datos Resolviendo Descripciones e IDs
+    query_p = """
+        SELECT p.Nombre, p.Apellido, p.Edad, IFNULL(per.Descripción, 'Sin Asignar') AS Personaje,
+        r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia,
+        c.Descripción AS Comisión, p.teléfono AS Teléfono
+        FROM participantes p
+        JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
+        JOIN comisiones c ON p.id_comision = c.id_comsion
+        JOIN roles r ON p.id_rol = r.id_rol
+        LEFT JOIN personajes per ON p.id_participante = per.id_participante
+    """
+    df_participantes = pd.read_sql(query_p, db_conn)
+
+    res_in = pd.read_sql("SELECT SUM(abono) as total FROM pago_patrocinantes", db_conn)
+    total_in = res_in['total'].iloc[0] or 0
+    res_out = pd.read_sql("SELECT SUM(monto) as total FROM gastos", db_conn)
+    total_out = res_out['total'].iloc[0] or 0
+    saldo = total_in - total_out
+
+    q_patros = """
+        SELECT p.negocio AS Patrocinante, p.`monto a pagar` AS Pactado,
+        IFNULL(SUM(pg.abono), 0) AS Abonado, (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
+        FROM patrocinantes p
+        LEFT JOIN pago_patrocinantes pg ON p.id_patrocinante = pg.id_patrocinante
+        GROUP BY p.id_patrocinante
+    """
+    df_patros = pd.read_sql(q_patros, db_conn)
+    df_gastos = pd.read_sql("SELECT `fecha del gasto` as Fecha, concepto as Concepto, monto as Monto FROM gastos ORDER BY `fecha del gasto` DESC", db_conn)
+    
+    query_v = """
+        SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia` as Parroquia, IFNULL(per.Descripción, 'General') as Personaje
+        FROM vestuario_final v
+        JOIN parroquia pa ON v.id_parroquia = pa.id_parroquia
+        LEFT JOIN personajes per ON v.id_personaje = per.id_personaje
+    """
+    df_vestuario = pd.read_sql(query_v, db_conn)
+    df_utileria = pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db_conn)
+
+    # 2. Construcción de Filas HTML para Tablas
+    html_part = "".join([f"<tr><td>{r['Nombre']} {r['Apellido']}</td><td>{r['Edad']}</td><td>{r['Personaje']}</td><td>{r['Rol']}</td><td>{r['Parroquia']}</td><td>{r['Comisión']}</td><td>{r['Teléfono']}</td></tr>" for _, r in df_participantes.iterrows()])
+    
+    html_patros = ""
+    for _, r in df_patros.iterrows():
+        estilo_td = "background-color: #ff7c70; color: black;" if r['Abonado'] == 0 else ("background-color: #258d19; color: white;" if r['Pendiente'] <= 0 else "background-color: #fcf75e; color: black;")
+        html_patros += f"<tr><td>{r['Patrocinante']}</td><td>{r['Pactado']:,.2f} COP</td><td>{r['Abonado']:,.2f} COP</td><td style='{estilo_td}'>{r['Pendiente']:,.2f} COP</td></tr>"
+
+    html_gastos = "".join([f"<tr><td>{r['Fecha']}</td><td>{r['Concepto']}</td><td>{r['Monto']:,.2f} COP</td></tr>" for _, r in df_gastos.iterrows()])
+    html_vest = "".join([f"<tr><td>{r['Personaje']}</td><td>{r['piezas']}</td><td>{r['descripcion']}</td><td>{r['Parroquia']}</td></tr>" for _, r in df_vestuario.iterrows()])
+    html_util = "".join([f"<tr><td>{r['objeto']}</td><td>{r['cantidad']}</td><td>{r['descripcion']}</td></tr>" for _, r in df_utileria.iterrows()])
+
+    # 3. Plantilla HTML con Fidelidad de Colores e Identidad del Sistema
+    html_template = f"""
+    <html>
+    <head>
+        <style>
+            @page {{
+                size: A4;
+                margin: 18mm 15mm;
+                background-color: #1c0933;
+            }}
+            body {{
+                font-family: 'Arial', sans-serif;
+                color: #ffffff;
+                margin: 0;
+                padding: 0;
+                background-color: #1c0933;
+            }}
+            .header-pdf {{
+                background-color: #150324;
+                border-bottom: 4px solid #b58c24;
+                padding: 30px;
+                text-align: center;
+                margin-bottom: 25px;
+                border-radius: 6px;
+            }}
+            .header-pdf h1 {{
+                color: #ffffff;
+                font-size: 28px;
+                margin: 0 0 8px 0;
+                letter-spacing: 1px;
+            }}
+            .header-pdf p {{
+                color: #e5b82b;
+                margin: 0;
+                font-size: 13px;
+                font-weight: bold;
+            }}
+            h2 {{
+                color: #e5b82b;
+                font-size: 18px;
+                border-bottom: 2px solid #312d38;
+                padding-bottom: 6px;
+                margin-top: 30px;
+                margin-bottom: 15px;
+            }}
+            .metrics-container {{
+                margin-bottom: 20px;
+                width: 100%;
+            }}
+            .metric-box {{
+                display: inline-block;
+                width: 30%;
+                background-color: #2b203a;
+                padding: 12px;
+                border-radius: 6px;
+                text-align: center;
+                margin-right: 2%;
+                border: 1px solid #312d38;
+            }}
+            .metric-box.saldo {{
+                border: 1px solid #e5b82b;
+            }}
+            .metric-title {{
+                font-size: 11px;
+                color: #a29bfe;
+                text-transform: uppercase;
+                margin-bottom: 5px;
+            }}
+            .metric-value {{
+                font-size: 16px;
+                font-weight: bold;
+                color: #ffffff;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 25px;
+                background-color: #2b203a;
+                border-radius: 6px;
+                overflow: hidden;
+                font-size: 11px;
+            }}
+            th {{
+                background-color: #312d38;
+                color: #e5b82b;
+                text-align: left;
+                padding: 10px;
+                font-weight: bold;
+                border-bottom: 2px solid #1c0933;
+            }}
+            td {{
+                padding: 9px 10px;
+                border-bottom: 1px solid #1c0933;
+                color: #ffffff;
+            }}
+            tr:nth-child(even) {{
+                background-color: #231930;
+            }}
+            .caption {{
+                font-size: 10px;
+                color: #a29bfe;
+                margin-bottom: 10px;
+                font-weight: bold;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header-pdf">
+            <h1>SISTEMA DE GESTIÓN DE PATRIMONIO</h1>
+            <p>REPORTE CONSOLIDADO FIEL - VIACRUCIS 2026</p>
+            <p style="color: #ffffff; font-size: 11px; font-weight: normal; margin-top: 5px;">Emitido el: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
+        </div>
+
+        <h2>👥 Personal y Elenco Registrado</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre Completo</th>
+                    <th>Edad</th>
+                    <th>Personaje Asignado</th>
+                    <th>Rol Base</th>
+                    <th>Parroquia Origen</th>
+                    <th>Comisión Asignada</th>
+                    <th>Teléfono</th>
+                </tr>
+            </thead>
+            <tbody>
+                {html_part}
+            </tbody>
+        </table>
+
+        <div style="page-break-before: always;"></div>
+
+        <h2>💵 Balance Económico General</h2>
+        <div class="metrics-container">
+            <div class="metric-box">
+                <div class="metric-title">Total Ingresos Pactados</div>
+                <div class="metric-value">{total_in:,.2f} COP</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-title">Total Egresos/Gastos</div>
+                <div class="metric-value">{total_out:,.2f} COP</div>
+            </div>
+            <div class="metric-box saldo">
+                <div class="metric-title" style="color: #e5b82b;">Saldo de Caja Neto</div>
+                <div class="metric-value" style="color: #e5b82b;">{saldo:,.2f} COP</div>
+            </div>
+        </div>
+
+        <h2>📋 Control de Recaudación (Patrocinantes)</h2>
+        <div class="caption">Estatus: Verde (Solvente) | Amarillo (Abonado pendiente) | Rojo (Sin registrar abonos)</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre Comercial o Patrocinante</th>
+                    <th>Monto Pactado</th>
+                    <th>Monto Abonado</th>
+                    <th>Saldo Pendiente</th>
+                </tr>
+            </thead>
+            <tbody>
+                {html_patros}
+            </tbody>
+        </table>
+
+        <h2>📊 Historial Descriptivo de Gastos</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha de Registro</th>
+                    <th>Concepto Detallado</th>
+                    <th>Monto Erogado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {html_gastos}
+            </tbody>
+        </table>
+
+        <div style="page-break-before: always;"></div>
+
+        <h2>📦 Inventario General de Vestuario</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Papel / Personaje</th>
+                    <th>Cantidad Piezas</th>
+                    <th>Descripción de Prendas</th>
+                    <th>Parroquia Propietaria</th>
+                </tr>
+            </thead>
+            <tbody>
+                {html_vest}
+            </tbody>
+        </table>
+
+        <h2>🛠️ Inventario Físico de Utilería</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Objeto / Herramienta</th>
+                    <th>Cantidad</th>
+                    <th>Descripción de Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {html_util}
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+    
+    # Renderizamos y retornamos el PDF binario
+    return HTML(string=html_template).write_pdf()
+
+# =========================================================================
+# 5. FILTRO Y PROTECCIÓN DE ACCESO
+# =========================================================================
 if not st.session_state['autenticado']:
     st.markdown("""
-        <div class="banner-acceso">
-            <h2 class="texto-acceso">Acceso al sistema 🔒🔑</h2>
-        </div>
+    <div class="banner-acceso">
+    <h2 class="texto-acceso">Acceso al sistema <span class="material-symbols-outlined" style="vertical-align: middle;">lock</span></h2>
+    </div>
     """, unsafe_allow_html=True)
-    
+
     col_cen, _ = st.columns([2, 1])
     with col_cen:
         with st.form("login"):
             user_input = st.text_input("Usuario 👤")
             pass_input = st.text_input("Contraseña 🔑", type="password")
-            
-            if st.form_submit_button("💥 INGRESAR"):
+
+            if st.form_submit_button("⚡ INGRESAR"):
                 db = conectar()
                 cursor = db.cursor()
                 query = "SELECT nombre_usuario, id_rol FROM usuarios WHERE nombre_usuario=%s AND clave=%s"
                 cursor.execute(query, (user_input, pass_input))
                 resultado = cursor.fetchone()
                 db.close()
-                
+
                 if resultado:
                     st.session_state['autenticado'] = True
                     st.session_state['usuario_nom'] = resultado[0]
-                    st.session_state['usuario_rol'] = resultado[1] 
+                    st.session_state['usuario_rol'] = resultado[1]
                     st.rerun()
                 else:
                     st.error("❌ Credenciales incorrectas.")
-    st.stop()
+                    st.stop()
 
-# --- INTERFAZ PRINCIPAL ---
-st.sidebar.markdown(f"👤 **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
-if st.sidebar.button("Cerrar Sesión"):
-    st.session_state['autenticado'] = False
-    st.rerun()
+# --- CONTINUACIÓN OPERADOR AUTENTICADO ---
+if st.session_state['autenticado']:
+    db = conectar()
 
-nombres_tabs = ["Personal 👥", "Economía 💵", "Inventario 📦"]
-if st.session_state['usuario_rol'] == 1:
-    nombres_tabs.append("Data 📝")
-
-tabs = st.tabs(nombres_tabs)
-db = conectar()
-
-# --- TAB 0: PERSONAL ---
-with tabs[0]:
-    st.markdown("<h2 style='color:#e5b82b;'>Personal 👥</h2>", unsafe_allow_html=True)
-    query_p = """
-    SELECT p.Nombre, p.Apellido, p.Edad, per.Descripción AS Personaje, 
-           r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia, 
-           c.Descripción AS Comisión, p.teléfono AS Teléfono
-    FROM participantes p
-    JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
-    JOIN comisiones c ON p.id_comision = c.id_comsion
-    JOIN roles r ON p.id_rol = r.id_rol
-    LEFT JOIN personajes per ON p.id_participante = per.id_participante
-    """
-    df_p = pd.read_sql(query_p, db)
-
-    st.sidebar.header("🔍 Filtros")
-    f_parroquia = st.sidebar.multiselect("Parroquia", options=df_p["Parroquia"].unique())
-    f_rol = st.sidebar.multiselect("Rol/Personaje", options=df_p["Rol"].unique())
-    f_comision = st.sidebar.multiselect("Comisión", options=df_p["Comisión"].unique())
-
-    df_f = df_p.copy()
-    if f_parroquia: df_f = df_f[df_f["Parroquia"].isin(f_parroquia)]
-    if f_rol: df_f = df_f[df_f["Rol"].isin(f_rol)]
-    if f_comision: df_f = df_f[df_f["Comisión"].isin(f_comision)]
-
-    st.metric("Total Personas", len(df_f))
-    st.dataframe(df_f, use_container_width=True, hide_index=True)
-
-with tabs[1]:
-    res_in = pd.read_sql("SELECT SUM(abono) as total FROM pago_patrocinantes", db)
-    total_in = res_in['total'].iloc[0] or 0
-    res_out = pd.read_sql("SELECT SUM(monto) as total FROM gastos", db)
-    total_out = res_out['total'].iloc[0] or 0
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Ingresos", f"{total_in} COP")
-    c2.metric("Gastos", f"{total_out} COP")
-    c3.metric("Saldo", f"{total_in - total_out} COP")
-    st.divider()
-    
+    st.sidebar.markdown(f"👤 **Usuario Activo:**\n### {st.session_state['usuario_nom']}")
+    st.sidebar.markdown("---")
+    st.sidebar.header("🖨️ Reportes")
 
     try:
-        q_estilo = """
-            SELECT 
-                p.negocio AS Patrocinante,
-                p.`monto a pagar` AS Pactado, 
-                IFNULL(SUM(pg.abono), 0) AS Abonado,
-                (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
+        # LLAMADA A LA NUEVA FUNCIÓN CON WEASYPRINT
+        pdf_data = generar_pdf_reporte(db)
+        st.sidebar.download_button(
+            label="📥 DESCARGAR REPORTE PDF FIEL",
+            data=pdf_data,
+            file_name=f"Reporte_Fiel_Patrimonio_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.sidebar.error(f"No se pudo compilar el PDF: {e}")
+
+    st.sidebar.markdown("---")
+    if st.sidebar.button("Cerrar Sesión", use_container_width=True):
+        st.session_state['autenticado'] = False
+        st.rerun()
+
+    nombres_tabs = ["Personal 👥", "Economía 💵", "Inventario 📦"]
+    if st.session_state['usuario_rol'] == 1:
+        nombres_tabs.append("Data 📝")
+    tabs = st.tabs(nombres_tabs)
+
+    # --- TAB 0: PERSONAL ---
+    with tabs[0]:
+        st.markdown("<h2 style='color:#e5b82b;'>Personal 👥</h2>", unsafe_allow_html=True)
+        query_p = """
+        SELECT p.Nombre, p.Apellido, p.Edad, IFNULL(per.Descripción, 'Sin Asignar') AS Personaje,
+        r.Descripción AS Rol, pa.`Nombre Parroquia` AS Parroquia,
+        c.Descripción AS Comisión, p.teléfono AS Teléfono
+        FROM participantes p
+        JOIN parroquia pa ON p.id_parroquia = pa.id_parroquia
+        JOIN comisiones c ON p.id_comision = c.id_comsion
+        JOIN roles r ON p.id_rol = r.id_rol
+        LEFT JOIN personajes per ON p.id_participante = per.id_participante
+        """
+        df_p = pd.read_sql(query_p, db)
+        st.sidebar.header("🔍 Filtros")
+        f_parroquia = st.sidebar.multiselect("Parroquia", options=df_p["Parroquia"].unique())
+        f_rol = st.sidebar.multiselect("Rol/Personaje", options=df_p["Rol"].unique())
+        f_comision = st.sidebar.multiselect("Comisión", options=df_p["Comisión"].unique())
+        df_f = df_p.copy()
+        if f_parroquia: df_f = df_f[df_f["Parroquia"].isin(f_parroquia)]
+        if f_rol: df_f = df_f[df_f["Rol"].isin(f_rol)]
+        if f_comision: df_f = df_f[df_f["Comisión"].isin(f_comision)]
+        st.metric("Total Personas", len(df_f))
+        st.dataframe(df_f, use_container_width=True, hide_index=True)
+
+    # --- TAB 1: ECONOMÍA ---
+    with tabs[1]:
+        res_in = pd.read_sql("SELECT SUM(abono) as total FROM pago_patrocinantes", db)
+        total_in = res_in['total'].iloc[0] or 0
+        res_out = pd.read_sql("SELECT SUM(monto) as total FROM gastos", db)
+        total_out = res_out['total'].iloc[0] or 0
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Ingresos", f"{total_in} COP")
+        c2.metric("Gastos", f"{total_out} COP")
+        c3.metric("Saldo", f"{total_in - total_out} COP")
+        st.divider()
+
+        try:
+            q_estilo = """
+            SELECT
+            p.negocio AS Patrocinante,
+            p.`monto a pagar` AS Pactado,
+            IFNULL(SUM(pg.abono), 0) AS Abonado,
+            (p.`monto a pagar` - IFNULL(SUM(pg.abono), 0)) AS Pendiente
             FROM patrocinantes p
             LEFT JOIN pago_patrocinantes pg ON p.id_patrocinante = pg.id_patrocinante
             GROUP BY p.id_patrocinante
-        """
-        df_pagos = pd.read_sql(q_estilo, db)
+            """
+            df_pagos = pd.read_sql(q_estilo, db)
 
-    
-        filtro = st.selectbox(
-            "🔍 Filtrar por estatus de pago:",
-            ["Todos", "Sin abonos", "Abonos", "Cancelado"]
-        )
+            filtro = st.selectbox("🔽 Filtrar por estatus de pago:", ["Todos", "Sin abonos", "Abonos", "Cancelado"])
 
-      
-        if filtro == "Sin abonos":
-            df_pagos = df_pagos[df_pagos['Abonado'] == 0]
-        elif filtro == "Abonos":
-            df_pagos = df_pagos[(df_pagos['Abonado'] > 0) & (df_pagos['Pendiente'] > 0)]
-        elif filtro == "Cancelado":
-            df_pagos = df_pagos[df_pagos['Pendiente'] <= 0]
+            if filtro == "Sin abonos":
+                df_pagos = df_pagos[df_pagos['Abonado'] == 0]
+            elif filtro == "Abonos":
+                df_pagos = df_pagos[(df_pagos['Abonado'] > 0) & (df_pagos['Pendiente'] > 0)]
+            elif filtro == "Cancelado":
+                df_pagos = df_pagos[df_pagos['Pendiente'] <= 0]
 
-        
-        def resaltar_estatus(row):
-            if row['Abonado'] == 0:
-                return ['background-color: #ff7c70; color: black'] * len(row)
-            elif row['Pendiente'] <= 0:
-                return ['background-color: #258d19; color: black'] * len(row) 
-            else:
-                return ['background-color: #fcf75e; color: black'] * len(row) 
+            def resaltar_estatus(row):
+                if row['Abonado'] == 0:
+                    return ['background-color: #ff7c70; color: black'] * len(row)
+                elif row['Pendiente'] <= 0:
+                    return ['background-color: #258d19; color: black'] * len(row)
+                else:
+                    return ['background-color: #fcf75e; color: black'] * len(row)
+            st.subheader(f"📋 Detalle: {filtro}")
+            st.caption("🟩 Pagó todo &nbsp;&nbsp;&nbsp;&nbsp; 🟨 Abonó &nbsp;&nbsp;&nbsp;&nbsp; 🟥 No ha abonado")
 
-        st.subheader(f"📋 Detalle: {filtro}")
-        
-        # --- LEYENDA DE COLORES ---
-        st.caption("🟩 Pagó todo &nbsp;&nbsp;&nbsp;&nbsp; 🟨 Abonó &nbsp;&nbsp;&nbsp;&nbsp; 🟥 No ha abonado")
-        
-        st.dataframe(
-            df_pagos.style.apply(resaltar_estatus, axis=1).format({
-                "Pactado": "{:.2f} COP",
-                "Abonado": "{:.2f} COP",
-                "Pendiente": "{:.2f} COP"
-            }), 
-            use_container_width=True,
-            hide_index=True
-        )
-
-    except Exception as e:
-        st.error(f"Error visualizando los colores: {e}")
-
-
-    st.subheader("📊 Detalle de Egresos")
-
-    try:
-        # Consultamos todos los gastos registrados
-        df_gastos_tabla = pd.read_sql("SELECT `fecha del gasto` as Fecha, concepto as Concepto, monto as `Monto (COP)` FROM gastos ORDER BY `fecha del gasto` DESC", db)
-        
-        if not df_gastos_tabla.empty:
-            # Mostramos la tabla con un formato limpio
-            st.dataframe(df_gastos_tabla, use_container_width=True, hide_index=True)
-        else:
-            st.info("Aún no hay gastos registrados.")
-            
-    except Exception as e:
-        st.error(f"No se pudo cargar la tabla de gastos: {e}")
-
-# --- TAB 2: INVENTARIO ---
-with tabs[2]:
-    cv, cu = st.columns(2)
-    with cv:
-        st.subheader("👕 Vestuario")
-        query_v = """
-        SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia` 
-        FROM vestuario_final v 
-        JOIN parroquia pa ON v.id_parroquia = pa.id_parroquia
-        """
-        st.dataframe(pd.read_sql(query_v, db), hide_index=True)
-    with cu:
-        st.subheader("🛠️ Utilería")
-        st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
-
-# --- TAB 3: DATA (PANEL CRÍTICO REESTRUCTURADO) ---
-if st.session_state.get('usuario_rol') == 1:
-    with tabs[3]:
-        
-        # ==========================================
-        # SECTION 1: REGISTRO DE DATOS NUEVOS
-        # ==========================================
-        st.header("📝 Registro de Datos")
-        
-        opc = st.radio("¿Qué deseas registrar?", 
-                       ["Gasto Nuevo", "Abono de Patrocinante", "Nuevo Patrocinante", "Nuevo Participante", "Nuevo Personaje"], 
-                       horizontal=True,
-                       key="radio_registro_datos")
-        
-        if opc == "Gasto Nuevo":
-            with st.form("nuevo_gasto"):
-                con = st.text_input("Concepto")
-                mon = st.number_input("Monto ($)", min_value=0.0)
-                fec = st.date_input("Fecha")
-                if st.form_submit_button("Guardar Gasto"):
-                    cur = db.cursor()
-                    cur.execute("INSERT INTO gastos (concepto, monto, `fecha del gasto`) VALUES (%s, %s, %s)", (con, mon, fec))
-                    db.commit()
-                    cur.close()
-                    st.success("✅ Gasto guardado con éxito.")
-                    st.rerun()
-        
-        elif opc == "Abono de Patrocinante":
-            df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
-            with st.form("nuevo_abono"):
-                p_id = st.selectbox("Negocio", options=df_pats['id_patrocinante'], 
-                                    format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
-                fecha_pago = st.date_input("Fecha del Abono")
-                abo = st.number_input("Monto Abono ($)", min_value=0.0)
-            
-                if st.form_submit_button("Registrar Abono"):
-                    try:
-                        cur = db.cursor()
-                        sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, `fecha de abono`) VALUES (%s, %s, %s)"
-                        valores = (int(p_id) if p_id else None, float(abo), fecha_pago)
-                        cur.execute(sql, valores)
-                        db.commit()
-                        cur.close()
-                        st.success(f"✅ Abono de ${abo} registrado.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
-
-        elif opc == "Nuevo Patrocinante":
-            with st.form("form_nuevo_patro"):
-                nombre_negocio = st.text_input("Nombre del Negocio o Persona")
-                telf = st.text_input("Teléfono de contacto")
-                monto_pactado = st.number_input("Monto a Pagar (Pacto en $)", min_value=0.0)
-                if st.form_submit_button("Registrar Nuevo Patrocinante"):
-                    if nombre_negocio:
-                        cur = db.cursor()
-                        sql = "INSERT INTO patrocinantes (negocio, teléfono, `monto a pagar`) VALUES (%s, %s, %s)"
-                        cur.execute(sql, (nombre_negocio, telf, monto_pactado))
-                        db.commit()
-                        cur.close()
-                        st.success(f"✅ ¡{nombre_negocio} agregado!")
-                        st.rerun()
-                    else:
-                        st.error("Mano, ponle el nombre al negocio por lo menos.")
-        
-        elif opc == "Nuevo Participante":
-            df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
-            df_par = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
-            df_rol = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
-
-            with st.form("form_nuevo_participante"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    nom = st.text_input("Nombre")
-                    ape = st.text_input("Apellido")
-                    eda = st.number_input("Edad", min_value=0)
-                with col2:
-                    telf_p = st.text_input("Teléfono")
-                    par_id = st.selectbox("Parroquia", options=df_par['id_parroquia'], 
-                                          format_func=lambda x: df_par[df_par['id_parroquia']==x]['Nombre Parroquia'].iloc[0])
-                    com_id = st.selectbox("Comisión", options=df_com['id_comsion'], 
-                                          format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
-            
-                rol_id = st.selectbox("Rol/Personaje", options=df_rol['id_rol'], 
-                                      format_func=lambda x: df_rol[df_rol['id_rol']==x]['Descripción'].iloc[0])
-
-                if st.form_submit_button("Registrar Participante"):
-                    try:
-                        cur = db.cursor()
-                        sql = """INSERT INTO participantes (Nombre, Apellido, Edad, teléfono, id_comision, id_parroquia, id_rol) 
-                                 VALUES (%s, %s, %s, %s, %s, %s, %s)"""
-                        cur.execute(sql, (nom, ape, int(eda) if eda else 0, telf_p, 
-                                          int(com_id) if com_id else None, 
-                                          int(par_id) if par_id else None, 
-                                          int(rol_id) if rol_id else None))
-                        db.commit()
-                        cur.close()
-                        st.success(f"✅ {nom} {ape} ha sido registrado.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error en base de datos: {e}")
-        
-        elif opc == "Nuevo Personaje":
-            try:
-                df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
-                df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
-
-                st.subheader("🎭 Asignar Papel del Elenco")
-                with st.form("form_personaje"):
-                    p_id = st.selectbox("Seleccionar Participante", options=df_participantes['id_participante'], 
-                                       format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
-                  
-                    nombre_papel = st.text_input("Nombre del Personaje")
-
-                    if st.form_submit_button("Guardar Personaje"):
-                        cur = db.cursor()
-                        sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
-                        cur.execute(sql, (nombre_papel, int(p_id) if p_id else None))
-                        db.commit()
-                        cur.close()
-                        st.success(f"✅ ¡{nombre_papel} asignado correctamente!")
-                        st.rerun()
-            except Exception as e:
-                st.error(f"⚠️ Hubo un detalle: {e}")
-
-        st.markdown("<hr>", unsafe_allow_html=True)
-
-        # ==========================================
-        # SECTION 2: PANEL DE EDICIÓN Y ELIMINACIÓN
-        # ==========================================
-        st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
-        
-        tabla_maestra = st.selectbox(
-            "Selecciona la tabla a editar:",
-            ["Participantes", "Gastos", "Vestuario", "Patrocinantes"],
-            key="selector_tabla_critica"
-        )
-        
-        mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
-        nombre_tabla_db = mapping[tabla_maestra]
-        
-        if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
-            df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
-            st.session_state.tabla_actual = df_original.copy()
-            st.session_state.backup_data = df_original.copy()
-            st.session_state.nombre_tabla_anterior = nombre_tabla_db
-            st.session_state.bloqueo_advertencia = False
- 
-        # Mensajes de estado limpios
-        if st.session_state.get("guardado_exitoso"):
-            st.success("🎉 ¡Información sincronizada en la Base de Datos!")
-            del st.session_state["guardado_exitoso"]
-        
-        if st.session_state.get("cambios_revertidos"):
-            st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
-            del st.session_state["cambios_revertidos"]
- 
-        # --- ESCENARIO A: MODO VISUALIZACIÓN / EDICIÓN ---
-        if not st.session_state.get("bloqueo_advertencia", False):
-            version_actual = st.session_state.editor_version
-            key_dinamica = f"editor_{nombre_tabla_db}_{version_actual}"
-            
-            # --- CONFIGURACIÓN DINÁMICA DE COLUMNAS ---
-            config_columnas = {}
-            
-            if nombre_tabla_db == "participantes":
-                df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
-                df_rol_map = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
-                df_com_map = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
-                
-                config_columnas = {
-                    "id_participante": st.column_config.NumberColumn("ID", disabled=True),
-                    "Nombre": st.column_config.TextColumn("Nombre"),
-                    "Apellido": st.column_config.TextColumn("Apellido"),
-                    "Edad": st.column_config.NumberColumn("Edad"),
-                    "id_parroquia": st.column_config.SelectboxColumn(
-                        "Parroquia",
-                        options=df_par_map["id_parroquia"].tolist(),
-                        format_func=lambda x: df_par_map[df_par_map["id_parroquia"] == x]["Nombre Parroquia"].iloc[0] if x in df_par_map["id_parroquia"].values else f"ID: {x}"
-                    ),
-                    "id_rol": st.column_config.SelectboxColumn(
-                        "Rol",
-                        options=df_rol_map["id_rol"].tolist(),
-                        format_func=lambda x: df_rol_map[df_rol_map["id_rol"] == x]["Descripción"].iloc[0] if x in df_rol_map["id_rol"].values else f"ID: {x}"
-                    ),
-                    "id_comision": st.column_config.SelectboxColumn(
-                        "Comisión",
-                        options=df_com_map["id_comsion"].tolist(),
-                        format_func=lambda x: df_com_map[df_com_map["id_comsion"] == x]["Descripción"].iloc[0] if x in df_com_map["id_comsion"].values else f"ID: {x}"
-                    ),
-                    "teléfono": st.column_config.TextColumn("Teléfono")
-                }
-            
-            elif nombre_tabla_db == "vestuario_final":
-                df_per_map = pd.read_sql("SELECT id_personaje, Descripción FROM personajes", db)
-                df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
-                
-                config_columnas = {
-                    "id_vestuario": st.column_config.NumberColumn("ID", disabled=True),
-                    "id_personaje": st.column_config.SelectboxColumn(
-                        "Personaje / Papel",
-                        options=df_per_map["id_personaje"].tolist(),
-                        format_func=lambda x: df_per_map[df_per_map["id_personaje"] == x]["Descripción"].iloc[0] if x in df_per_map["id_personaje"].values else f"ID: {x}"
-                    ),
-                    "piezas": st.column_config.NumberColumn("Piezas", min_value=1),
-                    "descripcion": st.column_config.TextColumn("Descripción Vestuario"),
-                    "id_parroquia": st.column_config.SelectboxColumn(
-                        "Parroquia Dueña",
-                        options=df_par_map["id_parroquia"].tolist(),
-                        format_func=lambda x: df_par_map[df_par_map["id_parroquia"] == x]["Nombre Parroquia"].iloc[0] if x in df_par_map["id_parroquia"].values else f"ID: {x}"
-                    )
-                }
-
-            # Renderizado común del editor
-            df_editado = st.data_editor(
-                st.session_state.tabla_actual, 
-                num_rows="dynamic",  
-                use_container_width=True, 
-                hide_index=True, 
-                column_config=config_columnas,
-                key=key_dinamica
+            st.dataframe(
+                df_pagos.style.apply(resaltar_estatus, axis=1).format({
+                    "Pactado": "{:.2f} COP",
+                    "Abonado": "{:.2f} COP",
+                    "Pendiente": "{:.2f} COP"
+                }),
+                use_container_width=True,
+                hide_index=True
             )
+        except Exception as e:
+            st.error(f"Error visualizando los colores: {e}")
 
-            cambios = st.session_state.get(key_dinamica, {})
-            hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
-            hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
-            hubo_adicion = len(cambios.get("added_rows", [])) > 0
+        st.subheader("📊 Detalle de Egresos")
+        try:
+            df_gastos_tabla = pd.read_sql("SELECT `fecha del gasto` as Fecha, concepto as Concepto, monto as `Monto (COP)` FROM gastos ORDER BY `fecha del gasto` DESC", db)
+            if not df_gastos_tabla.empty:
+                st.dataframe(df_gastos_tabla, use_container_width=True, hide_index=True)
+            else:
+                st.info("Aún no hay gastos registrados.")
+        except Exception as e:
+            st.error(f"No se pudo cargar la tabla de gastos: {e}")
 
-            if hubo_eliminacion or hubo_modificacion:
-                if nombre_tabla_db == "participantes": col_critica = "Nombre"
-                elif nombre_tabla_db == "vestuario_final": col_critica = "descripcion"
-                elif nombre_tabla_db == "gastos": col_critica = "concepto"
-                elif nombre_tabla_db == "patrocinantes": col_critica = "negocio"
-                else: col_critica = df_editado.columns[1] if len(df_editado.columns) > 1 else df_editado.columns[0]
-                
-                df_limpio = df_editado.dropna(subset=[col_critica])
-                df_limpio = df_limpio[df_limpio[col_critica].astype(str).str.strip() != ""]
-                
-                st.session_state.df_congelado_cambios = df_limpio.copy()
-                st.session_state.bloqueo_advertencia = True
-                st.rerun()
-                
-            elif hubo_adicion:
-                st.session_state.tabla_actual = df_editado.copy()
- 
-        # --- ESCENARIO B: PANTALLA DE ADVERTENCIA (CORREGIDO Y OPTIMIZADO) ---
-        else:
-            st.markdown(f"""
+    # --- TAB 2: INVENTARIO ---
+    with tabs[2]:
+        cv, cu = st.columns(2)
+        with cv:
+            st.subheader("👕 Vestuario")
+            query_v = """
+            SELECT v.piezas, v.descripcion, pa.`Nombre Parroquia`, IFNULL(per.Descripción, 'General') as Personaje
+            FROM vestuario_final v
+            JOIN parroquia pa ON v.id_parroquia = pa.id_parroquia
+            LEFT JOIN personajes per ON v.id_personaje = per.id_personaje
+            """
+            st.dataframe(pd.read_sql(query_v, db), hide_index=True)
+        with cu:
+            st.subheader("🛠️ Utilería")
+            st.dataframe(pd.read_sql("SELECT objeto, cantidad, descripcion FROM utileria", db), hide_index=True)
+
+    # --- TAB 3: DATA (PANEL ADMINISTRADOR EDICIÓN MAESTRA) ---
+    if st.session_state.get('usuario_rol') == 1:
+        with tabs[3]:
+            st.header("📝 Registro de Datos")
+            opc = st.radio("¿Qué deseas registrar?",
+                           ["Gasto Nuevo", "Abono de Patrocinante", "Nuevo Patrocinante", "Nuevo Participante", "Nuevo Personaje"],
+                           horizontal=True, key="radio_registro_datos")
+
+            if opc == "Gasto Nuevo":
+                with st.form("nuevo_gasto"):
+                    con = st.text_input("Concepto")
+                    mon = st.number_input("Monto ($)", min_value=0.0)
+                    fec = st.date_input("Fecha")
+                    if st.form_submit_button("Guardar Gasto"):
+                        cur = db.cursor()
+                        cur.execute("INSERT INTO gastos (concepto, monto, `fecha del gasto`) VALUES (%s, %s, %s)", (con, mon, fec))
+                        db.commit()
+                        cur.close()
+                        st.success("✅ Gasto guardado con éxito.")
+                        st.rerun()
+
+            elif opc == "Abono de Patrocinante":
+                df_pats = pd.read_sql("SELECT id_patrocinante, negocio FROM patrocinantes", db)
+                with st.form("nuevo_abono"):
+                    p_id = st.selectbox("🔽 Negocio", options=df_pats['id_patrocinante'],
+                                        format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
+                    fecha_pago = st.date_input("Fecha del Abono")
+                    abo = st.number_input("Monto Abono ($)", min_value=0.0)
+
+                    if st.form_submit_button("Registrar Abono"):
+                        try:
+                            cur = db.cursor()
+                            sql = "INSERT INTO pago_patrocinantes (id_patrocinante, abono, `fecha de abono`) VALUES (%s, %s, %s)"
+                            valores = (int(p_id) if p_id else None, float(abo), fecha_pago)
+                            cur.execute(sql, valores)
+                            db.commit()
+                            cur.close()
+                            st.success(f"✅ Abono de ${abo} registrado.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error: {e}")
+
+            elif opc == "Nuevo Patrocinante":
+                with st.form("form_nuevo_patro"):
+                    nombre_negocio = st.text_input("Nombre del Negocio o Persona")
+                    telf = st.text_input("Teléfono de contacto")
+                    monto_pactado = st.number_input("Monto a Pagar (Pacto en $)", min_value=0.0)
+                    if st.form_submit_button("Registrar Nuevo Patrocinante"):
+                        if nombre_negocio:
+                            cur = db.cursor()
+                            sql = "INSERT INTO patrocinantes (negocio, teléfono, `monto a pagar`) VALUES (%s, %s, %s)"
+                            cur.execute(sql, (nombre_negocio, telf, monto_pactado))
+                            db.commit()
+                            cur.close()
+                            st.success(f"✅ ¡{nombre_negocio} agregado!")
+                            st.rerun()
+                        else:
+                            st.error("Mano, ponle el nombre al negocio por lo menos.")
+
+            elif opc == "Nuevo Participante":
+                df_com = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
+                df_par = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
+                df_rol = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
+                with st.form("form_nuevo_participante"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        nom = st.text_input("Nombre")
+                        ape = st.text_input("Apellido")
+                        eda = st.number_input("Edad", min_value=0)
+                    with col2:
+                        telf_p = st.text_input("Teléfono")
+                        par_id = st.selectbox("🔽 Parroquia", options=df_par['id_parroquia'],
+                                              format_func=lambda x: df_par[df_par['id_parroquia']==x]['Nombre Parroquia'].iloc[0])
+                        com_id = st.selectbox("🔽 Comisión", options=df_com['id_comsion'],
+                                              format_func=lambda x: df_com[df_com['id_comsion']==x]['Descripción'].iloc[0])
+
+                    rol_id = st.selectbox("🔽 Rol/Personaje", options=df_rol['id_rol'],
+                                          format_func=lambda x: df_rol[df_rol['id_rol']==x]['Descripción'].iloc[0])
+                    if st.form_submit_button("Registrar Participante"):
+                        try:
+                            cur = db.cursor()
+                            sql = """INSERT INTO participantes (Nombre, Apellido, Edad, teléfono, id_comision, id_parroquia, id_rol)
+                                     VALUES (%s, %s, %s, %s, %s, %s, %s)"""
+                            cur.execute(sql, (nom, ape, int(eda) if eda else 0, telf_p,
+                                             int(com_id) if com_id else None,
+                                             int(par_id) if par_id else None,
+                                             int(rol_id) if rol_id else None))
+                            db.commit()
+                            cur.close()
+                            st.success(f"✅ {nom} {ape} ha sido registrado.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error en base de datos: {e}")
+
+            elif opc == "Nuevo Personaje":
+                try:
+                    df_participantes = pd.read_sql("SELECT id_participante, Nombre, Apellido FROM participantes", db)
+                    df_participantes['Nombre Completo'] = df_participantes['Nombre'] + " " + df_participantes['Apellido']
+                    st.subheader("🎭 Asignar Papel del Elenco")
+                    with st.form("form_personaje"):
+                        p_id = st.selectbox("🔽 Seleccionar Participante", options=df_participantes['id_participante'],
+                                            format_func=lambda x: df_participantes[df_participantes['id_participante']==x]['Nombre Completo'].iloc[0])
+                        nombre_papel = st.text_input("Nombre del Personaje")
+                        if st.form_submit_button("Guardar Personaje"):
+                            cur = db.cursor()
+                            sql = "INSERT INTO personajes (Descripción, id_participante) VALUES (%s, %s)"
+                            cur.execute(sql, (nombre_papel, int(p_id) if p_id else None))
+                            db.commit()
+                            cur.close()
+                            st.success(f"✅ ¡{nombre_papel} asignado correctamente!")
+                            st.rerun()
+                except Exception as e:
+                    st.error(f"⚠️ Hubo un detalle: {e}")
+            
+            st.markdown("<hr>", unsafe_allow_html=True)
+            st.markdown("<h2 style='color:#e5b82b;'>Panel de Control de Datos ⚙️</h2>", unsafe_allow_html=True)
+
+            tabla_maestra = st.selectbox("🔽 Selecciona la tabla a editar:", ["Participantes", "Gastos", "Vestuario", "Patrocinantes"], key="selector_tabla_critica")
+            mapping = {"Participantes": "participantes", "Gastos": "gastos", "Vestuario": "vestuario_final", "Patrocinantes": "patrocinantes"}
+            nombre_tabla_db = mapping[tabla_maestra]
+
+            if "tabla_actual" not in st.session_state or st.session_state.get("nombre_tabla_anterior") != nombre_tabla_db:
+                df_original = pd.read_sql(f"SELECT * FROM {nombre_tabla_db}", db)
+                st.session_state.tabla_actual = df_original.copy()
+                st.session_state.backup_data = df_original.copy()
+                st.session_state.nombre_tabla_anterior = nombre_tabla_db
+                st.session_state.bloqueo_advertencia = False
+
+            if st.session_state.get("guardado_exitoso"):
+                st.success("🎉 ¡Información sincronizada en la Base de Datos!")
+                del st.session_state["guardado_exitoso"]
+
+            if st.session_state.get("cambios_revertidos"):
+                st.warning("🔄 Cambios revocados. Se restauró la información original de manera segura.")
+                del st.session_state["cambios_revertidos"]
+
+            if not st.session_state.get("bloqueo_advertencia", False):
+                version_actual = st.session_state.editor_version
+                key_dinamica = f"editor_{nombre_tabla_db}_{version_actual}"
+                config_columnas = {}
+
+                if nombre_tabla_db == "participantes":
+                    df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
+                    df_rol_map = pd.read_sql("SELECT id_rol, Descripción FROM roles", db)
+                    df_com_map = pd.read_sql("SELECT id_comsion, Descripción FROM comisiones", db)
+
+                    config_columnas = {
+                        "id_participante": st.column_config.NumberColumn("ID", disabled=True),
+                        "Nombre": st.column_config.TextColumn("Nombre"),
+                        "Apellido": st.column_config.TextColumn("Apellido"),
+                        "Edad": st.column_config.NumberColumn("Edad"),
+                        "id_parroquia": st.column_config.SelectboxColumn(
+                            "Parroquia", options=df_par_map["id_parroquia"].tolist(),
+                            format_func=lambda x: df_par_map[df_par_map["id_parroquia"] == x]["Nombre Parroquia"].iloc[0] if x in df_par_map["id_parroquia"].values else f"ID: {x}"
+                        ),
+                        "id_rol": st.column_config.SelectboxColumn(
+                            "Rol", options=df_rol_map["id_rol"].tolist(),
+                            format_func=lambda x: df_rol_map[df_rol_map["id_rol"] == x]["Descripción"].iloc[0] if x in df_rol_map["id_rol"].values else f"ID: {x}"
+                        ),
+                        "id_comision": st.column_config.SelectboxColumn(
+                            "Comisión", options=df_com_map["id_comsion"].tolist(),
+                            format_func=lambda x: df_com_map[df_com_map["id_comsion"] == x]["Descripción"].iloc[0] if x in df_com_map["id_comsion"].values else f"ID: {x}"
+                        ),
+                        "teléfono": st.column_config.TextColumn("Teléfono")
+                    }
+
+                elif nombre_tabla_db == "vestuario_final":
+                    df_per_map = pd.read_sql("SELECT id_personaje, Descripción FROM personajes", db)
+                    df_par_map = pd.read_sql("SELECT id_parroquia, `Nombre Parroquia` FROM parroquia", db)
+
+                    config_columnas = {
+                        "id_vestuario": st.column_config.NumberColumn("ID", disabled=True),
+                        "id_personaje": st.column_config.SelectboxColumn(
+                            "Personaje / Papel", options=df_per_map["id_personaje"].tolist(),
+                            format_func=lambda x: df_per_map[df_per_map["id_personaje"] == x]["Descripción"].iloc[0] if x in df_per_map["id_personaje"].values else f"ID: {x}"
+                        ),
+                        "piezas": st.column_config.NumberColumn("Piezas", min_value=1),
+                        "descripcion": st.column_config.TextColumn("Descripción Vestuario"),
+                        "id_parroquia": st.column_config.SelectboxColumn(
+                            "Parroquia Dueña", options=df_par_map["id_parroquia"].tolist(),
+                            format_func=lambda x: df_par_map[df_par_map["id_parroquia"] == x]["Nombre Parroquia"].iloc[0] if x in df_par_map["id_parroquia"].values else f"ID: {x}"
+                        )
+                    }
+
+                df_editado = st.data_editor(st.session_state.tabla_actual, num_rows="dynamic", use_container_width=True, hide_index=True, column_config=config_columnas, key=key_dinamica)
+                cambios = st.session_state.get(key_dinamica, {})
+                hubo_eliminacion = len(cambios.get("deleted_rows", [])) > 0
+                hubo_modificacion = len(cambios.get("edited_rows", {})) > 0
+                hubo_adicion = len(cambios.get("added_rows", [])) > 0
+
+                if hubo_eliminacion or hubo_modificacion:
+                    if nombre_tabla_db == "participantes": col_critica = "Nombre"
+                    elif nombre_tabla_db == "vestuario_final": col_critica = "descripcion"
+                    elif nombre_tabla_db == "gastos": col_critica = "concepto"
+                    elif nombre_tabla_db == "patrocinantes": col_critica = "negocio"
+                    else: col_critica = df_editado.columns[1] if len(df_editado.columns) > 1 else df_editado.columns[0]
+
+                    df_limpio = df_editado.dropna(subset=[col_critica])
+                    df_limpio = df_limpio[df_limpio[col_critica].astype(str).str.strip() != ""]
+                    st.session_state.df_congelado_cambios = df_limpio.copy()
+                    st.session_state.bloqueo_advertencia = True
+                    st.rerun()
+                elif hubo_adicion:
+                    st.session_state.tabla_actual = df_editado.copy()
+            else:
+                st.markdown("""
                 <div style="background-color: #ffeaa7; padding: 20px; border-radius: 10px; border-left: 8px solid #e17055; margin-bottom: 20px;">
                     <p style="color: #d63031; font-weight: bold; font-size: 14px; text-align: center; margin: 0; letter-spacing: 2px;">⚠️ AVISO DE SEGURIDAD CRÍTICO ⚠️</p>
                     <h2 style="color: #000000; font-size: 28px; font-weight: 800; text-align: center; margin-top: 5px; margin-bottom: 10px;">¿Confirmar alteración de datos?</h2>
                     <p style="color: #2f3542; font-size: 16px; text-align: center; font-weight: bold; margin-bottom: 10px;">
-                        Has editado o eliminado registros existentes en la tabla '{tabla_maestra}'.<br>El sistema mantendrá bloqueada la pantalla hasta que decidas:
+                        Has editado o eliminado registros existentes en la tabla. El sistema mantendrá bloqueada la pantalla hasta que decidas:
                     </p>
                 </div>
-            """, unsafe_allow_html=True)
-            
-            col_si, col_no = st.columns(2)
-            datos_nuevos = st.session_state.get("df_congelado_cambios")
-            
-            with col_si:
-                if st.button("🟢 SÍ, CONFIRMAR Y APLICAR CAMBIOS", use_container_width=True):
-                    if datos_nuevos is not None:
-                        cur = db.cursor()
-                        try:
-                            # 1. OPTIMIZACIÓN: Desactivar restricciones globales y abrir transacción única
-                            cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                            
-                            columna_id = datos_nuevos.columns[0]
-                            
-                            if nombre_tabla_db == "participantes": col_critica = "Nombre"
-                            elif nombre_tabla_db == "vestuario_final": col_critica = "descripcion"
-                            elif nombre_tabla_db == "gastos": col_critica = "concepto"
-                            elif nombre_tabla_db == "patrocinantes": col_critica = "negocio"
-                            else: col_critica = datos_nuevos.columns[1] if len(datos_nuevos.columns) > 1 else datos_nuevos.columns[0]
-                                
-                            datos_filtrados = datos_nuevos.dropna(subset=[col_critica])
-                            datos_filtrados = datos_filtrados[datos_filtrados[col_critica].astype(str).str.strip() != ""]
-                            
-                            # 2. Obtener los IDs actuales de forma directa
-                            cur.execute(f"SELECT `{columna_id}` FROM {nombre_tabla_db}")
-                            ids_en_db = [row[0] for row in cur.fetchall()]
-                            ids_en_editor = datos_filtrados[columna_id].dropna().tolist()
-                            
-                            # 3. Borrado quirúrgico rápido
-                            ids_a_borrar = [id_db for id_db in ids_en_db if id_db not in ids_en_editor]
-                            if ids_a_borrar:
-                                format_strings = ','.join(['%s'] * len(ids_a_borrar))
-                                cur.execute(f"DELETE FROM {nombre_tabla_db} WHERE `{columna_id}` IN ({format_strings})", tuple(ids_a_borrar))
-                            
-                            # 4. SÚPER OPTIMIZACIÓN: Inserción y Actualización MASIVA mediante `executemany`
-                            cols = ", ".join([f"`{c}`" for c in datos_filtrados.columns])
-                            placeholders = ", ".join(["%s"] * len(datos_filtrados.columns))
-                            updates = ", ".join([f"`{c}` = VALUES(`{c}`)" for c in datos_filtrados.columns if c != columna_id])
-                            sql_save = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
-                            
-                            # Mapeamos los valores de todo el lote
-                            lote_valores = []
-                            for _, row in datos_filtrados.iterrows():
-                                valores_fila = tuple(None if pd.isna(v) else v for v in row)
-                                lote_valores.append(valores_fila)
-                            
-                            if lote_valores:
-                                cur.executemany(sql_save, lote_valores)
-                            
-                            # 5. Reactivar restricciones y asegurar el COMMIT masivo
-                            cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                            db.commit()
-                            
-                            # 6. LIMPIEZA INMEDIATA DE ESTADOS (Previene el bucle del cartel)
-                            st.session_state.tabla_actual = datos_filtrados.copy()
-                            st.session_state.backup_data = datos_filtrados.copy()
-                            if "df_congelado_cambios" in st.session_state:
-                                del st.session_state["df_congelado_cambios"]
-                                
-                            st.session_state.editor_version += 1
-                            st.session_state.guardado_exitoso = True
-                            st.session_state.bloqueo_advertencia = False
-                            
-                        except Exception as err:
-                            db.rollback()
-                            try: cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                            except: pass
-                            st.error(f"❌ Error crítico al procesar la actualización: {err}")
-                        finally:
-                            cur.close()
-                    
-                    st.rerun()
-                    
-            with col_no:
-                if st.button("🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
-                    st.session_state.tabla_actual = st.session_state.backup_data.copy()
-                    if "df_congelado_cambios" in st.session_state:
-                        del st.session_state["df_congelado_cambios"]
-                    st.session_state.editor_version += 1
-                    st.session_state.cambios_revertidos = True
-                    st.session_state.bloqueo_advertencia = False
-                    st.rerun()
+                """, unsafe_allow_html=True)
 
-# ==========================================
-# SECTION 3: CIERRE DE CONEXIÓN GLOBAL
-# ==========================================
-if 'db' in locals() and db.is_connected():
-    db.close()
+                col_si, col_no = st.columns(2)
+                datos_nuevos = st.session_state.get("df_congelado_cambios")
+
+                with col_si:
+                    if st.button("🟢 SÍ, CONFIRMAR Y APLICAR CAMBIOS", use_container_width=True):
+                        if datos_nuevos is not None:
+                            cur = db.cursor()
+                            try:
+                                cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                                columna_id = datos_nuevos.columns[0]
+
+                                if nombre_tabla_db == "participantes": col_critica = "Nombre"
+                                elif nombre_tabla_db == "vestuario_final": col_critica = "descripcion"
+                                elif nombre_tabla_db == "gastos": col_critica = "concepto"
+                                elif nombre_tabla_db == "patrocinantes": col_critica = "negocio"
+                                else: col_critica = datos_nuevos.columns[1] if len(datos_nuevos.columns) > 1 else datos_nuevos.columns[0]
+
+                                datos_filtrados = datos_nuevos.dropna(subset=[col_critica])
+                                datos_filtrados = datos_filtrados[datos_filtrados[col_critica].astype(str).str.strip() != ""]
+
+                                cur.execute(f"SELECT `{columna_id}` FROM {nombre_tabla_db}")
+                                ids_en_db = [row[0] for row in cur.fetchall()]
+                                ids_en_editor = datos_filtrados[columna_id].dropna().tolist()
+
+                                ids_a_borrar = [id_db for id_db in ids_en_db if id_db not in ids_en_editor]
+                                if ids_a_borrar:
+                                    format_strings = ','.join(['%s'] * len(ids_a_borrar))
+                                    cur.execute(f"DELETE FROM {nombre_tabla_db} WHERE `{columna_id}` IN ({format_strings})", tuple(ids_a_borrar))
+
+                                cols = ", ".join([f"`{c}`" for c in datos_filtrados.columns])
+                                placeholders = ", ".join(["%s"] * len(datos_filtrados.columns))
+                                updates = ", ".join([f"`{c}` = VALUES(`{c}`)" for c in datos_filtrados.columns if c != columna_id])
+                                sql_save = f"INSERT INTO {nombre_tabla_db} ({cols}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
+
+                                lote_valores = []
+                                for _, row in datos_filtrados.iterrows():
+                                    lote_valores.append(tuple(None if pd.isna(v) else v for v in row))
+
+                                if lote_valores:
+                                    cur.executemany(sql_save, lote_valores)
+
+                                cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                                db.commit()
+
+                                st.session_state.tabla_actual = datos_filtrados.copy()
+                                st.session_state.backup_data = datos_filtrados.copy()
+                                if "df_congelado_cambios" in st.session_state:
+                                    del st.session_state["df_congelado_cambios"]
+
+                                st.session_state.editor_version += 1
+                                st.session_state.guardado_exitoso = True
+                                st.session_state.bloqueo_advertencia = False
+                            except Exception as err:
+                                db.rollback()
+                                try: cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                                except: pass
+                                st.error(f"❌ Error crítico al procesar la actualización: {err}")
+                            finally:
+                                cur.close()
+                            st.rerun()
+
+                with col_no:
+                    if st.button(" Karol 🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
+                        st.session_state.tabla_actual = st.session_state.backup_data.copy()
+                        if "df_congelado_cambios" in st.session_state:
+                            del st.session_state["df_congelado_cambios"]
+                        st.session_state.editor_version += 1
+                        st.session_state.cambios_revertidos = True
+                        st.session_state.bloqueo_advertencia = False
+                        st.rerun()
+
+    if 'db' in locals() and db.is_connected():
+        db.close()
