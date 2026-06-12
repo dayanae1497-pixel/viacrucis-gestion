@@ -270,7 +270,7 @@ def generar_pdf_reporte(db_conn):
     pdf.cell(190, 8, clean_txt("SISTEMA DE GESTIÓN DE PATRIMONIO"), align="C", ln=True)
     pdf.set_text_color(229, 184, 43) # Oro #e5b82b
     pdf.set_font("Helvetica", style="B", size=11)
-    pdf.cell(190, 6, clean_txt("REPORTE CONSOLIDADO FIEL - VIACRUCIS 2026"), align="C", ln=True)
+    pdf.cell(190, 6, clean_txt("REPORTE CONSOLIDADO - VIACRUCIS 2026"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Helvetica", size=8)
     pdf.cell(190, 5, clean_txt(f"Emitido el: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"), align="C", ln=True)
@@ -361,7 +361,7 @@ def generar_pdf_reporte(db_conn):
     pdf.set_text_color(229, 184, 43)
     pdf.cell(60, 4, clean_txt("SALDO EN CAJA"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(60, 5, clean_txt(f"{saldo:,.2f} COP"), align="C")
+    pdf.cell(60, 4, clean_txt(f"{saldo:,.2f} COP"), align="C")
 
     # Reset de color de dibujo
     pdf.set_draw_color(0, 0, 0)
