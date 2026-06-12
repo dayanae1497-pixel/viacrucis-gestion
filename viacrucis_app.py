@@ -569,7 +569,7 @@ if st.session_state['autenticado']:
     try:
         # LLAMADA TOTALMENTE PORTÁTIL CON FPDF
         pdf_data_raw = generar_pdf_reporte(db)
-        pdf_bytes = bytes(pdf_data_raw
+        pdf_bytes = bytes(pdf_data_raw)
         st.sidebar.download_button(
             label="📥 DESCARGAR REPORTE PDF",
             data=pdf_bytes,  # <--- Le pasamos los bytes puros ya convertidos
