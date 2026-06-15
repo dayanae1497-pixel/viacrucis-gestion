@@ -658,7 +658,7 @@ if st.session_state['autenticado']:
                 else:
                     return ['background-color: #fcf75e; color: black'] * len(row)
             st.subheader(f"📋 Detalle: {filtro}")
-            st.caption("🟩 Pagó todo &nbsp;&nbsp;&nbsp;&nbsp; 🟨 Abonó &nbsp;&nbsp;&nbsp;&nbsp; 🟥 No ha abonado")
+            st.caption("🟩 Cancelado todo &nbsp;&nbsp;&nbsp;&nbsp; 🟨 Con abonos &nbsp;&nbsp;&nbsp;&nbsp; 🟥 Sin abonos")
 
             st.dataframe(
                 df_pagos.style.apply(resaltar_estatus, axis=1).format({
@@ -975,7 +975,7 @@ if st.session_state['autenticado']:
                             st.rerun()
 
                 with col_no:
-                    if st.button(" Karol 🔴 NO, REVERTIR ANOMALÍAS", use_container_width=True):
+                    if st.button("🔴 NO, REVERTIR CAMBIOS", use_container_width=True):
                         st.session_state.tabla_actual = st.session_state.backup_data.copy()
                         if "df_congelado_cambios" in st.session_state:
                             del st.session_state["df_congelado_cambios"]
