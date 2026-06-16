@@ -587,7 +587,7 @@ if st.session_state['autenticado']:
         st.dataframe(df_f, use_container_width=True, hide_index=True)
 
     # --- TAB 1: ECONOMÍA ---
-     with tabs[1]:
+    with tabs[1]:
         res_in = pd.read_sql("SELECT SUM(abono) as total FROM pago_patrocinantes", db)
         total_in = res_in['total'].iloc[0] or 0
         res_out = pd.read_sql("SELECT SUM(monto) as total FROM gastos", db)
