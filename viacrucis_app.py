@@ -290,7 +290,7 @@ def generar_pdf_reporte(df_p, df_patros, df_gastos, df_vest, df_util, t_in, t_ou
     pdf.set_text_color(162, 155, 254)
     pdf.cell(60, 4, clean_txt("TOTAL GASTOS"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(60, 5, clean_txt(f"{t_out:,.2f} COP"), align="C")
+    pdf.cell(150, 5, clean_txt(f"{t_out:,.2f} COP"), align="C")
 
     pdf.set_fill_color(43, 32, 58)
     pdf.rect(140, 22, 60, 16, 'F')
@@ -300,7 +300,7 @@ def generar_pdf_reporte(df_p, df_patros, df_gastos, df_vest, df_util, t_in, t_ou
     pdf.set_text_color(229, 184, 43)
     pdf.cell(60, 4, clean_txt("SALDO EN CAJA"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(60, 5, clean_txt(f"{sld:,.2f} COP"), align="C")
+    pdf.cell(225, 5, clean_txt(f"{sld:,.2f} COP"), align="C")
 
     pdf.set_draw_color(0, 0, 0)
     pdf.set_xy(10, 45)
@@ -675,7 +675,7 @@ if st.session_state['autenticado']:
             if opc == "Gasto Nuevo":
                 with st.form("nuevo_gasto"):
                     con = st.text_input("Concepto")
-                    mon = st.number_input("Monto ($)", min_value=0.0)
+                    mon = st.number_input("Monto (cop)", min_value=0.0)
                     fec = st.date_input("Fecha")
                     if st.form_submit_button("Guardar Gasto"):
                         cur = db.cursor()
@@ -691,7 +691,7 @@ if st.session_state['autenticado']:
                     p_id = st.selectbox("🔽 Negocio", options=df_pats['id_patrocinante'],
                                         format_func=lambda x: df_pats[df_pats['id_patrocinante']==x]['negocio'].iloc[0])
                     fecha_pago = st.date_input("Fecha del Abono")
-                    abo = st.number_input("Monto Abono ($)", min_value=0.0)
+                    abo = st.number_input("Monto Abono (cop)", min_value=0.0)
 
                     if st.form_submit_button("Registrar Abono"):
                         try:
