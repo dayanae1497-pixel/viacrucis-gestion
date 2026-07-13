@@ -300,7 +300,7 @@ def generar_pdf_reporte(df_p, df_patros, df_gastos, df_vest, df_util, t_in, t_ou
     pdf.set_text_color(229, 184, 43)
     pdf.cell(60, 4, clean_txt("SALDO EN CAJA"), align="C", ln=True)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(380, 5, clean_txt(f"{sld:,.2f} COP"), align="C")
+    pdf.cell(260, 5, clean_txt(f"{sld:,.2f} COP"), align="C")
 
     pdf.set_draw_color(0, 0, 0)
     pdf.set_xy(10, 45)
